@@ -6,7 +6,9 @@ import type { ApplicationContext } from "@/lib/application-context/types";
 import { ApplicationShell } from "./application-shell";
 
 vi.mock("./session-validity-guard", () => ({
-  SessionValidityGuard: ({ children }: { children: React.ReactNode }) => children,
+  SessionValidityGuard: ({ children }: { children: React.ReactNode }) => (
+    <section aria-label="Session validity guard">{children}</section>
+  ),
 }));
 vi.mock("./account-menu", () => ({
   AccountMenu: ({ displayName }: { displayName: string }) => (
@@ -107,5 +109,19 @@ describe("ApplicationShell", () => {
       "Not available",
     );
     expect(screen.queryByRole("button", { name: /Change client workspace/ })).not.toBeInTheDocument();
+  });
+
+  it("can omit only the browser-side guard for the explicitly gated local E2E context", () => {
+    render(
+      <ApplicationShell context={context} enforceSessionValidity={false}>
+        <main>Local E2E work</main>
+      </ApplicationShell>,
+    );
+
+    expect(
+      screen.queryByRole("region", { name: "Session validity guard" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Local E2E work")).toBeInTheDocument();
+    expect(screen.getByLabelText("Local test account for Consultant Alice")).toBeInTheDocument();
   });
 });

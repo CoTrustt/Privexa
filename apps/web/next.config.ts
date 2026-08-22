@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  ...(process.env.PRIVEXA_NEXT_DIST_DIR
+    ? { distDir: process.env.PRIVEXA_NEXT_DIST_DIR }
+    : {}),
   logging: {
     incomingRequests: {
       // Stytch returns a one-time credential in this callback query string.

@@ -7,6 +7,9 @@ import { getServerApplicationContext } from "@/lib/application-context/server";
 export default async function WorkspaceLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const allowLocalE2EContext =
+    process.env.NODE_ENV !== "production" &&
+    process.env.PRIVEXA_E2E_AUTH_BYPASS === "true";
   const result = await getServerApplicationContext();
   if (!result.ok) {
     if (result.status === 401) {
@@ -16,7 +19,10 @@ export default async function WorkspaceLayout({
   }
 
   return (
-    <ApplicationShell context={result.context}>
+    <ApplicationShell
+      context={result.context}
+      enforceSessionValidity={!allowLocalE2EContext}
+    >
       {result.context.state === "ACTIVE_CLIENT" ? (
         children
       ) : result.context.state === "CLIENT_SELECTION_REQUIRED" ? (

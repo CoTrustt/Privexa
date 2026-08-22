@@ -10,5 +10,8 @@ describe("WorkspaceLoading", () => {
     expect(screen.getByRole("status", { name: "Establishing secure workspace" })).toBeInTheDocument();
     expect(screen.getByText("Establishing secure workspace…")).toBeInTheDocument();
     expect(screen.queryByText(/Apollo|Northstar|Choose a client/)).not.toBeInTheDocument();
+    expect(document.querySelector(".workspace-divider.workspace-skeleton")).toBeInTheDocument();
+    expect(document.querySelector(".workspace-firm.workspace-skeleton")).toBeInTheDocument();
+    expect(document.querySelector(".workspace-context-slot.workspace-skeleton")).toBeInTheDocument();
   });
 });

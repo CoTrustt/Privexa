@@ -9,10 +9,14 @@ import type { ApplicationContext } from "@/lib/application-context/types";
 export function ApplicationShell({
   context,
   children,
-}: Readonly<{ context: ApplicationContext; children: React.ReactNode }>) {
-  return (
-    <SessionValidityGuard>
-      <div className="workspace-shell">
+  enforceSessionValidity = true,
+}: Readonly<{
+  context: ApplicationContext;
+  children: React.ReactNode;
+  enforceSessionValidity?: boolean;
+}>) {
+  const shell = (
+    <div className="workspace-shell">
         <header className="workspace-header">
           <div className="workspace-header-inner">
             <Link className="workspace-brand" href="/" aria-label="Privexa home">
@@ -37,7 +41,21 @@ export function ApplicationShell({
                 </div>
               )}
             </div>
-            <AccountMenu displayName={context.user.display_name} />
+            {enforceSessionValidity ? (
+              <AccountMenu displayName={context.user.display_name} />
+            ) : (
+              <div
+                className="account-trigger"
+                aria-label={`Local test account for ${context.user.display_name}`}
+              >
+                <span className="account-avatar" aria-hidden>
+                  AR
+                </span>
+                <span className="hidden max-w-40 truncate text-sm font-medium text-[var(--pv-text-strong)] md:block">
+                  {context.user.display_name}
+                </span>
+              </div>
+            )}
           </div>
           <nav className="workspace-nav" aria-label="Primary navigation">
             <div className="workspace-nav-inner">
@@ -51,7 +69,12 @@ export function ApplicationShell({
           </nav>
         </header>
         {children}
-      </div>
-    </SessionValidityGuard>
+    </div>
+  );
+
+  return enforceSessionValidity ? (
+    <SessionValidityGuard>{shell}</SessionValidityGuard>
+  ) : (
+    shell
   );
 }
