@@ -26,35 +26,32 @@ from pydantic import SecretStr
 from sqlalchemy import Engine, delete, update
 from sqlalchemy.orm import Session
 
-from privexa_api.access_control.context import (
-    ClientAuthorizationContext,
-    FirmAuthorizationContext,
-)
 from privexa_api.access_control.enums import ClientAccessStatus, FirmRole, MembershipStatus
 from privexa_api.access_control.models import ClientAccessGrant, FirmMembership
 from privexa_api.access_control.permissions import Permission
 from privexa_api.api.authorization_dependencies import (
     LOGGER,
-    require_client_permission,
     require_firm_permission,
+    require_switch_target_client_permission,
 )
 from privexa_api.api.dependencies import get_database_session
 from privexa_api.clients.service import ClientWorkspaceService
 from privexa_api.config import Settings
 from privexa_api.db.session import build_session_factory
 from privexa_api.main import create_app
+from privexa_api.security.execution_context import ExecutionContext
 
 FirmReadAuthorization = Annotated[
-    FirmAuthorizationContext,
+    ExecutionContext,
     Depends(require_firm_permission(Permission.FIRM_READ)),
 ]
 FirmMemberManagementAuthorization = Annotated[
-    FirmAuthorizationContext,
+    ExecutionContext,
     Depends(require_firm_permission(Permission.FIRM_MEMBERS_MANAGE)),
 ]
 ClientReadAuthorization = Annotated[
-    ClientAuthorizationContext,
-    Depends(require_client_permission(Permission.CLIENT_READ)),
+    ExecutionContext,
+    Depends(require_switch_target_client_permission(Permission.CLIENT_READ)),
 ]
 DatabaseSession = Annotated[Session, Depends(get_database_session)]
 pytestmark = [pytest.mark.security, pytest.mark.tenant_isolation]
@@ -80,13 +77,13 @@ def _build_client(
 
     @app.get("/test/firm")
     def read_firm(authorization: FirmReadAuthorization) -> dict[str, str]:
-        return {"firm_id": str(authorization.firm_context.firm_id)}
+        return {"firm_id": str(authorization.firm_id)}
 
     @app.post("/test/firm/members")
     def manage_members(
         authorization: FirmMemberManagementAuthorization,
     ) -> dict[str, str]:
-        return {"firm_id": str(authorization.firm_context.firm_id)}
+        return {"firm_id": str(authorization.firm_id)}
 
     @app.get("/test/clients/{client_id}")
     def read_client(
@@ -95,7 +92,7 @@ def _build_client(
     ) -> dict[str, str]:
         client = ClientWorkspaceService.get_current(
             session,
-            authorization=authorization,
+            context=authorization,
         )
         return {"client_id": str(client.id), "name": client.name}
 
@@ -305,13 +302,9 @@ def test_deleted_membership_denies_same_unexpired_provider_session(
 
     with Session(owner_engine) as session, session.begin():
         session.execute(
-            delete(ClientAccessGrant).where(
-                ClientAccessGrant.membership_id == ALICE_MEMBERSHIP_ID
-            )
+            delete(ClientAccessGrant).where(ClientAccessGrant.membership_id == ALICE_MEMBERSHIP_ID)
         )
-        session.execute(
-            delete(FirmMembership).where(FirmMembership.id == ALICE_MEMBERSHIP_ID)
-        )
+        session.execute(delete(FirmMembership).where(FirmMembership.id == ALICE_MEMBERSHIP_ID))
 
     denied = client.get(f"/test/clients/{APOLLO_FINANCE_ID}")
 

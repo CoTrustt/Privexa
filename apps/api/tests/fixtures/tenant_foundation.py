@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from privexa_api.access_control.enums import FirmRole, MembershipStatus
 from privexa_api.access_control.models import ClientAccessGrant, FirmMembership
+from privexa_api.ai_policy.models import AIPolicyOverride
 from privexa_api.clients.models import ClientWorkspace
 from privexa_api.identity.models import Firm, User
 
@@ -36,6 +37,9 @@ RAHUL_MEMBERSHIP_ID = UUID("00000000-0000-4000-8000-000000000023")
 RAHUL_ACME_GRANT_ID = UUID("00000000-0000-4000-8000-000000000024")
 INACTIVE_MEMBER_ID = UUID("00000000-0000-4000-8000-000000000025")
 INACTIVE_MEMBERSHIP_ID = UUID("00000000-0000-4000-8000-000000000026")
+RESTRICTED_CLIENT_ID = UUID("00000000-0000-4000-8000-000000000027")
+ALICE_RESTRICTED_GRANT_ID = UUID("00000000-0000-4000-8000-000000000028")
+RESTRICTED_AI_OVERRIDE_ID = UUID("00000000-0000-4000-8000-000000000029")
 
 FIRM_B_ID = UUID("00000000-0000-4000-8000-000000000101")
 NORTHSTAR_RETAIL_ID = UUID("00000000-0000-4000-8000-000000000102")
@@ -52,6 +56,7 @@ STYTCH_BOB_ID = "member-test-bob"
 STYTCH_DAVID_ID = "member-test-david"
 STYTCH_ANITA_ID = "member-test-anita"
 STYTCH_RAHUL_ID = "member-test-rahul"
+STYTCH_MARK_ID = "member-test-mark"
 STYTCH_FIRM_B_ADMIN_ID = "member-test-firm-b-admin"
 
 
@@ -61,6 +66,7 @@ class TenantFoundationFixture:
     apollo_finance: ClientWorkspace
     acme_healthcare: ClientWorkspace
     meridian_retail: ClientWorkspace
+    restricted_client: ClientWorkspace
     vishant: User
     vishant_membership: FirmMembership
     david: User
@@ -80,6 +86,7 @@ class TenantFoundationFixture:
     alice_membership: FirmMembership
     alice_apollo_grant: ClientAccessGrant
     alice_acme_grant: ClientAccessGrant
+    alice_restricted_grant: ClientAccessGrant
     carol: User
     carol_membership: FirmMembership
     carol_apollo_grant: ClientAccessGrant
@@ -114,6 +121,11 @@ def persist_tenant_foundation_fixture(session: Session) -> TenantFoundationFixtu
         firm_id=FIRM_A_ID,
         name="Meridian Retail",
     )
+    restricted_client = ClientWorkspace(
+        id=RESTRICTED_CLIENT_ID,
+        firm_id=FIRM_A_ID,
+        name="Restricted Client Demo",
+    )
     vishant = User(
         id=VISHANT_ID,
         email="vishant@firm-a.test",
@@ -147,6 +159,7 @@ def persist_tenant_foundation_fixture(session: Session) -> TenantFoundationFixtu
         firm_id=FIRM_A_ID,
         user_id=MARK_ID,
         role=FirmRole.READ_ONLY,
+        stytch_member_id=STYTCH_MARK_ID,
     )
     mark_acme_grant = ClientAccessGrant(
         id=MARK_ACME_GRANT_ID,
@@ -213,6 +226,22 @@ def persist_tenant_foundation_fixture(session: Session) -> TenantFoundationFixtu
         firm_id=FIRM_A_ID,
         client_id=ACME_HEALTHCARE_ID,
         membership_id=ALICE_MEMBERSHIP_ID,
+    )
+    alice_restricted_grant = ClientAccessGrant(
+        id=ALICE_RESTRICTED_GRANT_ID,
+        firm_id=FIRM_A_ID,
+        client_id=RESTRICTED_CLIENT_ID,
+        membership_id=ALICE_MEMBERSHIP_ID,
+    )
+    restricted_ai_override = AIPolicyOverride(
+        id=RESTRICTED_AI_OVERRIDE_ID,
+        firm_id=FIRM_A_ID,
+        client_id=RESTRICTED_CLIENT_ID,
+        task_id="ai.prepare_work_note",
+        sensitivity="SENSITIVE",
+        constraints={"enabled": False},
+        revision=1,
+        configuration_hash=("6ffcbc797c9328f1451bbbf42d0ebf15484b1baa43598d70f1a6a91644fd0ee9"),
     )
     carol = User(
         id=CAROL_ID,
@@ -301,6 +330,7 @@ def persist_tenant_foundation_fixture(session: Session) -> TenantFoundationFixtu
             apollo_finance,
             acme_healthcare,
             meridian_retail,
+            restricted_client,
             northstar_retail,
         ]
     )
@@ -309,6 +339,7 @@ def persist_tenant_foundation_fixture(session: Session) -> TenantFoundationFixtu
         [
             alice_apollo_grant,
             alice_acme_grant,
+            alice_restricted_grant,
             carol_apollo_grant,
             mark_acme_grant,
             anita_apollo_grant,
@@ -317,12 +348,15 @@ def persist_tenant_foundation_fixture(session: Session) -> TenantFoundationFixtu
         ]
     )
     session.flush()
+    session.add(restricted_ai_override)
+    session.flush()
 
     return TenantFoundationFixture(
         firm_a=firm_a,
         apollo_finance=apollo_finance,
         acme_healthcare=acme_healthcare,
         meridian_retail=meridian_retail,
+        restricted_client=restricted_client,
         vishant=vishant,
         vishant_membership=vishant_membership,
         david=david,
@@ -342,6 +376,7 @@ def persist_tenant_foundation_fixture(session: Session) -> TenantFoundationFixtu
         alice_membership=alice_membership,
         alice_apollo_grant=alice_apollo_grant,
         alice_acme_grant=alice_acme_grant,
+        alice_restricted_grant=alice_restricted_grant,
         carol=carol,
         carol_membership=carol_membership,
         carol_apollo_grant=carol_apollo_grant,

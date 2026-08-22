@@ -1,37 +1,44 @@
-import { ArrowRight, Scale } from "lucide-react";
+import { redirect } from "next/navigation";
 
-export default function HomePage() {
+import { QuestionsSection } from "@/components/questions/questions-section";
+import { WorkspaceState } from "@/components/workspace/workspace-state";
+import { getServerApplicationContext } from "@/lib/application-context/server";
+import { questionCapabilities } from "@/lib/application-context/types";
+import { listQuestions } from "@/lib/questions/server";
+
+export default async function HomePage() {
+  const contextResult = await getServerApplicationContext();
+  if (!contextResult.ok) {
+    if (contextResult.status === 401) redirect("/sign-in?reason=SESSION_EXPIRED");
+    return <WorkspaceState kind={contextResult.status === 403 ? "unavailable" : "temporary"} />;
+  }
+  const client = contextResult.context.active_client;
+  if (!client) return null;
+  const [openResult, anyResult] = await Promise.all([
+    listQuestions({ clientId: client.id, status: "OPEN", limit: 5 }),
+    listQuestions({ clientId: client.id, limit: 1 }),
+  ]);
+  const capabilities = questionCapabilities(contextResult.context);
+
   return (
-    <main className="mx-auto max-w-7xl px-5 py-12 sm:px-8 sm:py-16">
-      <div className="max-w-2xl">
-        <p className="text-sm font-medium text-[var(--accent)]">Home</p>
-        <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-          Your privacy work starts here.
+    <main className="workspace-main">
+      <div className="max-w-3xl">
+        <p className="workspace-eyebrow mt-0">Overview</p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] text-[var(--pv-text-strong)] sm:text-4xl">
+          {client.display_name}
         </h1>
-        <p className="mt-5 max-w-xl text-base leading-7 text-[var(--ink-muted)]">
-          Authentication is active. Client access is resolved separately so an empty client list
-          never becomes an authentication failure.
+        <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--pv-text-muted)]">
+          Current privacy work for this client workspace.
         </p>
       </div>
-
-      <section className="mt-12 grid max-w-3xl gap-4 sm:grid-cols-2" aria-label="Workspace status">
-        <article className="rounded-2xl border border-[var(--line)] bg-white p-6">
-          <Scale className="size-5 text-[var(--accent)]" aria-hidden="true" />
-          <h2 className="mt-8 text-lg font-semibold">Professional judgement</h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--ink-muted)]">
-            Privexa prepares the work. You own every material decision.
-          </p>
-        </article>
-        <article className="flex flex-col justify-between rounded-2xl border border-[var(--line)] bg-[#20231f] p-6 text-white">
-          <div>
-            <p className="text-sm text-white/60">Next capability</p>
-            <h2 className="mt-2 text-lg font-semibold">Client workspaces</h2>
-          </div>
-          <p className="mt-8 flex items-center gap-2 text-sm text-white/70">
-            Available when provisioned <ArrowRight className="size-4" aria-hidden="true" />
-          </p>
-        </article>
-      </section>
+      <QuestionsSection
+        clientId={client.id}
+        clientName={client.display_name}
+        openQuestions={openResult.ok ? openResult.data : null}
+        hasAnyQuestions={anyResult.ok && anyResult.data.items.length > 0}
+        canCreate={capabilities.can_create}
+        problem={!openResult.ok ? openResult.problem : undefined}
+      />
     </main>
   );
 }

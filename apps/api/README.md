@@ -25,6 +25,25 @@ The Compose initialization creates separate schema-owner and runtime roles. Alem
 connection from `DATABASE_URL`. Application code must use the non-owner runtime role so PostgreSQL
 row-level security cannot be bypassed by table ownership.
 
+## Professional domain object kernel
+
+PBI 1.1 provides the reusable deterministic contracts for future Question, ProcessingActivity,
+Evidence, Obligation, Decision, and Action records. It standardizes explicit client ownership,
+Membership-derived provenance, optimistic versioning, opt-in archival, lifecycle validation, safe
+domain errors, in-process domain events, and domain tracing without adding speculative production
+tables. Adoption rules and the required PostgreSQL/RLS migration template are documented in
+`docs/architecture/domain-object-kernel.md`.
+
+## Question domain
+
+PBI 1.3 implements the client-scoped Question professional object at
+`/v1/clients/{client_id}/questions`. Questions preserve human-authored content, begin `OPEN`, use
+explicit resolve/close/reopen commands, require optimistic versions for every mutation, and remain
+protected by active-client authorization plus forced PostgreSQL RLS. Question operation events are
+emitted through the PBI 1.1 post-commit domain-event boundary without logging authored content.
+See `docs/architecture/question-domain.md` for the API, lifecycle, permissions, and security
+contract.
+
 ## Tenant context
 
 Only `AccessControlService.authorize_firm`, `AccessControlService.authorize_client`, and
@@ -46,16 +65,41 @@ they must not open a global application session.
 remain restricted to the Firm identified by their Membership.
 
 Future protected routes should use `require_firm_permission(Permission...)`,
-`require_client_permission(Permission...)`, or `require_self_permission(Permission...)`, pass the
-returned context into an application service, and let that service call a Firm/client-scoped
-repository. Do not pass request `user_id` or `firm_id` values into authorization, construct
-authorization contexts directly, or call protected repositories from routes.
+`require_self_permission(Permission...)`, or one of the active-client dependencies. An ordinary
+client resource route with a `{client_id}` path uses `require_active_client_path_permission(...)`;
+the path value must match the server-selected active client. Only the active-client switch route may
+use `require_switch_target_client_permission(...)` to authorize a new explicit target. Pass the
+returned `ExecutionContext` into an application service and let that service derive the narrow
+Firm/client context used by its repository. Do not pass request `user_id` or `firm_id` values into
+authorization, construct execution contexts from request data, or call protected repositories from
+routes. The authorization service remains responsible for deciding authority; the execution context
+carries its action-bound result downstream.
 
-RLS is enabled and forced on `firms`, `users`, `firm_memberships`, `client_workspaces`, and
-`client_access_grants`. Missing or malformed context exposes no protected rows. The FastAPI process
-also refuses to start if its database role is a superuser, has `BYPASSRLS`, owns a protected table,
-or encounters a protected table without forced RLS. Alembic remains the only normal schema-owner
-path; never configure `APP_DATABASE_URL` with `DATABASE_URL` credentials.
+Routes that operate on the user's currently selected workspace may use
+`require_active_client_permission(Permission...)`. This dependency reads the active selection for
+the validated Stytch member session, independently reauthorizes that ClientWorkspace, and issues a
+new immutable client-scoped `ExecutionContext`. The browser never supplies the Firm, Membership,
+role, or capabilities for this flow.
+
+PBI-0.15 separates navigation from resource access. Switching clients validates the requested
+target, while ordinary client-scoped operations are bound to the already active server session.
+Having access to two clients does not authorize using one client's URL or resource IDs while the
+other is active. The route inventory records this distinction as an explicit protection class.
+
+Privexa generates the canonical request UUID even when a caller supplies `X-Request-ID`. The optional
+trace ID remains separate and is unset until supported tracing infrastructure provides a valid active
+trace. Current protected web execution begins with `STANDARD` effective sensitivity and originates
+from the server-controlled `WEB` channel. Loading more sensitive information creates an immutable
+derived context at `SENSITIVE` or `RESTRICTED`; downstream execution never becomes less restrictive.
+See `docs/architecture/canonical-execution-context.md` and
+`docs/architecture/data-sensitivity-policy.md` for field provenance and policy rules.
+
+RLS is enabled and forced on `firms`, `users`, `firm_memberships`, `client_workspaces`,
+`client_access_grants`, `stored_files`, and `active_client_sessions`. Missing or malformed context
+exposes no protected rows. The FastAPI process also refuses to start if its database role is a
+superuser, has `BYPASSRLS`, owns a protected table, or encounters a protected table without forced
+RLS. Alembic remains the only normal schema-owner path; never configure `APP_DATABASE_URL` with
+`DATABASE_URL` credentials.
 
 Authorization responses use `401` for authentication failure, `403` for prohibited actions in a
 valid visible scope, and a generic `404` for unavailable or cross-tenant scopes. Private decision
@@ -71,6 +115,23 @@ After copying the repository `.env.example` to `.env`, run the API from `apps/ap
 request, then maps the returned organization/member pair to an active local FirmMembership.
 `POST /v1/auth/logout` requires the configured web Origin, revokes the Stytch session, and expires
 the auth cookies. Callers never supply trusted Firm or Membership IDs.
+
+## Authenticated application context
+
+`GET /v1/application-context` returns a narrow browser-safe projection of the authenticated user,
+Firm, current active ClientWorkspace, and only the ClientWorkspaces currently authorised by the
+existing access-control policy. It deliberately requires an explicit first selection instead of
+deriving authority from list order. When an active ClientWorkspace exists, the response also
+projects `question_capabilities.can_create` and `can_update` from the same authorization policy.
+These booleans are presentation guidance only; Question routes independently authorize every
+operation and remain protected by active-client scope and forced PostgreSQL RLS.
+
+`PUT /v1/application-context/active-client/{client_id}` treats the path value as an untrusted
+request. The normal client authorization dependency validates it, then stores only the authorised
+Client ID against a SHA-256 fingerprint of the validated Stytch member-session ID. Selection is
+session-specific, RLS-protected, and revalidated when application context or a downstream active
+client dependency is resolved. The switch does not mutate the current request's immutable
+`ExecutionContext`; subsequent requests receive the new client scope.
 
 For a local test identity, create one Stytch B2B organization and member, then link their IDs to
 the corresponding existing Privexa records. Set `firms.stytch_organization_id` and
@@ -110,6 +171,74 @@ write and relationship isolation, missing database context, transaction/pool cle
 tenant transactions, and mocked AI-tool and agent boundaries. It must never run through
 `DATABASE_URL`; tenant assertions use `TEST_APP_DATABASE_URL`, while the owner connection is limited
 to migrations, deterministic setup, lifecycle changes, and postcondition checks.
+
+## Internal AI Gateway
+
+PBI-0.10 adds a backend-only, task-oriented AI execution boundary. Product code imports the public
+contracts from `privexa_api.ai_gateway` and invokes a registered task with an authoritative
+`ExecutionContext`. It never supplies a provider, model, raw system prompt, tenant identifier, or
+provider credential.
+
+The infrastructure task `synthetic_text_summary` remains available for regression coverage. The
+customer-facing Build-0 task is `ai.prepare_work_note` version `1`: it accepts a bounded work note,
+requires trusted active-client `file.read` context, optionally accepts up to 100 unique stored-file
+IDs, applies the sensitive-data protection profile, and returns a Pydantic-validated provisional
+candidate. Every selected file is exact-set authorized as an available record in the active Firm
+and ClientWorkspace before provider execution, and only authorized references are recorded in
+provenance. The business endpoint is
+`POST /v1/ai/tasks/ai.prepare_work_note/prepare`; it never mutates an authoritative record.
+
+AI execution is disabled by default. `AI_PROVIDER_MODE=deterministic` enables a network-free
+development/test provider and is rejected in staging/production. `AI_PROVIDER_MODE=openrouter`
+uses the server-only `OPENROUTER_API_KEY` when present plus task models explicitly included in
+`AI_APPROVED_OPENROUTER_MODELS`. A missing development credential does not prevent application
+startup; live invocation returns a safe configuration failure. Test configuration rejects
+OpenRouter mode so automated checks cannot consume paid inference. OpenRouter remains an internal
+adapter detail. Logs contain only
+execution, tenant, task, provider, timing, usage, cost, and normalized outcome metadata; prompts,
+source content, provider response bodies, and credentials are excluded.
+
+For a deterministic development demonstration, provision both synthetic clients with the existing
+development-only command by passing `--client 'Apollo Finance Demo'`,
+`--client 'Restricted Client Demo'`, and
+`--restrict-work-note-ai-client 'Restricted Client Demo'` (plus assignments when using a scoped
+role). This idempotently creates the restricted task override without customer data.
+
+The gateway sends structured-output requests only to endpoints satisfying the task parameters,
+denies provider data collection, requires Zero Data Retention, disables fallback, and applies
+configured maximum per-million-token prices. Reported cost is operational telemetry, not billing.
+
+PBI-0.11 places the deterministic `privexa_api.ai_policy` capability inside this path. Every normal
+Gateway call receives an immutable ALLOW/DENY decision before routing. ALLOW carries provider/model
+classes, ZDR/redaction requirements, a protection profile, token and cost ceilings, fallback, and
+the Build 0 authority allowlist. When a profile is selected, the reusable Presidio-backed protection
+service transforms model-visible user content before routing and provider request construction.
+Request-local token maps are neither logged nor persisted, and mandatory failures reject execution.
+PostgreSQL runtime controls and RLS-scoped Firm/Client overrides may only make execution more
+restrictive. The migration seeds global AI disabled; enabling the deployment setting alone is not
+sufficient until the operational control is explicitly enabled.
+
+PBI-0.13 makes privacy-safe provenance automatic at the same Gateway boundary. Each governed call
+creates one logical `ai_executions` record, ordered append-only lifecycle events, and source-ID
+references under forced Firm/Client RLS. Provider attempts, safe PII aggregates, usage/cost, trace
+correlation, and a canonical validated-output hash are recorded without persisting prompts, source
+contents, detected values, response bodies, or outputs. Provenance failure is fail-closed: model I/O
+does not begin without an initial record, and successful output is withheld unless finalization is
+durable. See `docs/architecture/ai-execution-provenance.md`.
+
+AI tasks that declare source types must resolve every source through a registered server-side
+resolver under the execution's RLS-bound `ExecutionContext`. Mixed-client, missing, duplicate,
+unknown, or unauthorized source sets fail atomically before policy routing, prompt construction, or
+provider I/O. Rejected provenance contains the execution outcome and zero unverified source rows;
+raw source content and foreign identifiers are not logged.
+
+PBI-0.16 adds revisioned global, task, and provider controls plus shared PostgreSQL provider/model
+circuit state. The Gateway rechecks authority immediately before provider I/O and again before
+accepting a response, so a switch activated during an in-flight request causes the result to be
+discarded safely. The browser receives only product-safe capability state and manual work remains
+available. Build 0 keeps zero automatic retries and `NO_FALLBACK`. Operator commands, circuit
+defaults, failure taxonomy, and local demonstrations are documented in
+`docs/architecture/ai-availability-control.md`.
 
 Run the complete API regression suite with:
 

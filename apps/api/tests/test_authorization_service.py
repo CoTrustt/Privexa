@@ -424,7 +424,7 @@ def test_direct_service_call_with_invalid_context_is_denied_not_crashed(
     with Session(app_engine) as session, pytest.raises(AuthorizationDeniedError) as captured:
         ClientWorkspaceService.get_current(
             session,
-            authorization=bad_context,
+            context=bad_context,
         )
 
     assert captured.value.reason == AuthorizationFailureReason.INVALID_CONTEXT

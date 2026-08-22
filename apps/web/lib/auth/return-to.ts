@@ -17,6 +17,13 @@ export function safeReturnTo(candidate: string | null | undefined): string {
   }
 }
 
+export function signInPath(returnTo: string | null | undefined): string {
+  const destination = safeReturnTo(returnTo);
+  return destination === DEFAULT_RETURN_TO
+    ? "/sign-in"
+    : `/sign-in?returnTo=${encodeURIComponent(destination)}`;
+}
+
 export function rememberReturnTo(destination: string): void {
   document.cookie = `${RETURN_TO_COOKIE_NAME}=${encodeURIComponent(safeReturnTo(destination))}; Path=/; Max-Age=600; SameSite=Lax`;
 }

@@ -13,10 +13,13 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const allowLocalE2EContext =
+    process.env.NODE_ENV !== "production" &&
+    process.env.PRIVEXA_E2E_AUTH_BYPASS === "true";
   return (
     <html lang="en">
       <body>
-        <StytchProvider>{children}</StytchProvider>
+        <StytchProvider bypassForLocalE2E={allowLocalE2EContext}>{children}</StytchProvider>
       </body>
     </html>
   );

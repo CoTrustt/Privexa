@@ -5,6 +5,7 @@ from fixtures.tenant_foundation import STYTCH_ALICE_ID, STYTCH_FIRM_A_ID
 from pydantic import SecretStr
 from sqlalchemy import Engine
 
+from privexa_api.api.authorization_dependencies import RouteProtectionClass
 from privexa_api.api.dependencies import require_authenticated_identity
 from privexa_api.authentication.stytch_gateway import ValidatedStytchSession
 from privexa_api.config import Settings
@@ -54,6 +55,8 @@ def test_every_production_route_has_an_explicit_protection_classification(
             STYTCH_SECRET=SecretStr("secret-test-privexa"),
             PRIVEXA_ENVIRONMENT="test",
             PRIVEXA_WEB_ORIGIN="http://localhost:3000",
+            AI_GATEWAY_ENABLED=False,
+            AI_PROVIDER_MODE="disabled",
         ),
         stytch_gateway=FakeStytchGateway(),
         session_factory=build_session_factory(app_engine),
@@ -67,9 +70,31 @@ def test_every_production_route_has_an_explicit_protection_classification(
         "/v1/auth/logout",
     }
     authenticated_paths = {"/v1/auth/session"}
+    firm_protected_paths = {"/v1/application-context"}
+    switch_target_paths = {
+        "/v1/application-context/active-client/{client_id}",
+    }
+    active_client_path_paths = {
+        "/v1/clients/{client_id}/files/uploads",
+        "/v1/clients/{client_id}/files/{file_id}/complete",
+        "/v1/clients/{client_id}/files/{file_id}",
+        "/v1/clients/{client_id}/files/{file_id}/download",
+        "/v1/clients/{client_id}/questions",
+        "/v1/clients/{client_id}/questions/{question_id}",
+        "/v1/clients/{client_id}/questions/{question_id}/resolve",
+        "/v1/clients/{client_id}/questions/{question_id}/close",
+        "/v1/clients/{client_id}/questions/{question_id}/reopen",
+    }
+    active_client_paths = {
+        "/v1/ai/tasks/ai.prepare_work_note/capability",
+        "/v1/ai/tasks/ai.prepare_work_note/prepare",
+    }
+    client_protected_paths = switch_target_paths | active_client_path_paths | active_client_paths
 
     flattened_routes = _flatten_routes(app)
-    assert {path for path, _ in flattened_routes} == public_paths | authenticated_paths
+    assert {path for path, _ in flattened_routes} == (
+        public_paths | authenticated_paths | firm_protected_paths | client_protected_paths
+    )
 
     session_route = next(
         route
@@ -82,3 +107,24 @@ def test_every_production_route_has_an_explicit_protection_classification(
         if dependency.call is not None
     }
     assert require_authenticated_identity in dependency_calls
+
+    for path, route in flattened_routes:
+        if path not in (firm_protected_paths | client_protected_paths) or not isinstance(
+            route, APIRoute
+        ):
+            continue
+        protection_classes = {
+            getattr(dependency.call, "__privexa_protection_class__", None)
+            for dependency in route.dependant.dependencies
+            if dependency.call is not None
+        }
+        expected = (
+            RouteProtectionClass.FIRM
+            if path in firm_protected_paths
+            else RouteProtectionClass.SWITCH_TARGET_CLIENT
+            if path in switch_target_paths
+            else RouteProtectionClass.ACTIVE_CLIENT_PATH
+            if path in active_client_path_paths
+            else RouteProtectionClass.ACTIVE_CLIENT
+        )
+        assert expected in protection_classes

@@ -5,6 +5,7 @@ import {
   readRememberedReturnTo,
   rememberReturnTo,
   safeReturnTo,
+  signInPath,
 } from "./return-to";
 
 describe("safeReturnTo", () => {
@@ -26,5 +27,21 @@ describe("safeReturnTo", () => {
     rememberReturnTo("https://evil.example/steal");
     expect(readRememberedReturnTo()).toBe("/");
     clearRememberedReturnTo();
+  });
+});
+
+describe("signInPath", () => {
+  it("clears callback parameters when returning to the default sign-in page", () => {
+    expect(signInPath("/")).toBe("/sign-in");
+  });
+
+  it("preserves a safe internal destination", () => {
+    expect(signInPath("/clients?view=active")).toBe(
+      "/sign-in?returnTo=%2Fclients%3Fview%3Dactive",
+    );
+  });
+
+  it("drops an unsafe destination", () => {
+    expect(signInPath("https://evil.example/steal")).toBe("/sign-in");
   });
 });

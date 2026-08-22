@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -12,6 +14,7 @@ from privexa_api.access_control.enums import (
     MembershipStatus,
 )
 from privexa_api.access_control.models import ClientAccessGrant, FirmMembership
+from privexa_api.ai_policy.models import AIPolicyOverride
 from privexa_api.clients.enums import ClientWorkspaceStatus
 from privexa_api.clients.models import ClientWorkspace
 from privexa_api.identity.enums import FirmStatus, UserStatus
@@ -34,6 +37,7 @@ class DevelopmentIdentitySpec:
     stytch_member_id: str
     client_names: tuple[str, ...] = ()
     assigned_client_names: tuple[str, ...] = ()
+    restricted_work_note_client_names: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +79,12 @@ def _normalize_spec(spec: DevelopmentIdentitySpec) -> DevelopmentIdentitySpec:
             for name in spec.assigned_client_names
         )
     )
+    restricted_work_note_client_names = tuple(
+        dict.fromkeys(
+            _required_text(name, field="restricted work-note client name")
+            for name in spec.restricted_work_note_client_names
+        )
+    )
     if assigned_client_names and spec.role not in _ASSIGNMENT_ROLES:
         raise DevelopmentProvisioningError(
             "Firm Owner and Firm Admin access all same-firm clients and must not receive "
@@ -90,6 +100,7 @@ def _normalize_spec(spec: DevelopmentIdentitySpec) -> DevelopmentIdentitySpec:
         stytch_member_id=member_id,
         client_names=client_names,
         assigned_client_names=assigned_client_names,
+        restricted_work_note_client_names=restricted_work_note_client_names,
     )
 
 
@@ -229,6 +240,53 @@ def _resolve_assignment(
     return grant
 
 
+def _restrict_work_note_ai(
+    session: Session,
+    *,
+    firm: Firm,
+    client: ClientWorkspace,
+) -> None:
+    task_id = "ai.prepare_work_note"
+    sensitivity = "SENSITIVE"
+    constraints = {"enabled": False}
+    revision = 1
+    canonical = {
+        "firm_id": str(firm.id),
+        "client_id": str(client.id),
+        "task": task_id,
+        "sensitivity": sensitivity,
+        "revision": revision,
+        "constraints": constraints,
+    }
+    configuration_hash = hashlib.sha256(
+        json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    override = session.scalar(
+        select(AIPolicyOverride).where(
+            AIPolicyOverride.firm_id == firm.id,
+            AIPolicyOverride.client_id == client.id,
+            AIPolicyOverride.task_id == task_id,
+            AIPolicyOverride.sensitivity == sensitivity,
+            AIPolicyOverride.superseded_at.is_(None),
+        )
+    )
+    if override is None:
+        override = AIPolicyOverride(
+            firm_id=firm.id,
+            client_id=client.id,
+            task_id=task_id,
+            sensitivity=sensitivity,
+            constraints=constraints,
+            revision=revision,
+            configuration_hash=configuration_hash,
+        )
+        session.add(override)
+    else:
+        override.constraints = constraints
+        override.revision = revision
+        override.configuration_hash = configuration_hash
+
+
 def provision_development_identity(
     session: Session,
     *,
@@ -247,7 +305,13 @@ def provision_development_identity(
     )
 
     requested_client_names = tuple(
-        dict.fromkeys((*normalized.client_names, *normalized.assigned_client_names))
+        dict.fromkeys(
+            (
+                *normalized.client_names,
+                *normalized.assigned_client_names,
+                *normalized.restricted_work_note_client_names,
+            )
+        )
     )
     clients = {
         name: _resolve_client(session, firm=firm, name=name) for name in requested_client_names
@@ -260,6 +324,8 @@ def provision_development_identity(
             membership=membership,
             client=client,
         )
+    for name in normalized.restricted_work_note_client_names:
+        _restrict_work_note_ai(session, firm=firm, client=clients[name])
     session.flush()
 
     return ProvisionedDevelopmentIdentity(

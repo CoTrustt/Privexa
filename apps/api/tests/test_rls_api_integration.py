@@ -20,22 +20,22 @@ from pydantic import SecretStr
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
-from privexa_api.access_control.context import ClientAuthorizationContext
 from privexa_api.access_control.decisions import AuthorizationFailureReason
 from privexa_api.access_control.errors import AuthorizationResourceNotFoundError
 from privexa_api.access_control.models import ClientAccessGrant
 from privexa_api.access_control.permissions import Permission
-from privexa_api.api.authorization_dependencies import require_client_permission
+from privexa_api.api.authorization_dependencies import require_switch_target_client_permission
 from privexa_api.api.dependencies import get_database_session
 from privexa_api.api.errors import DATABASE_SECURITY_LOGGER
 from privexa_api.clients.models import ClientWorkspace
 from privexa_api.config import Settings
 from privexa_api.db.session import build_session_factory
 from privexa_api.main import create_app
+from privexa_api.security.execution_context import ExecutionContext
 
 ClientReadAuthorization = Annotated[
-    ClientAuthorizationContext,
-    Depends(require_client_permission(Permission.CLIENT_READ)),
+    ExecutionContext,
+    Depends(require_switch_target_client_permission(Permission.CLIENT_READ)),
 ]
 DatabaseSession = Annotated[Session, Depends(get_database_session)]
 pytestmark = [pytest.mark.security, pytest.mark.tenant_isolation]

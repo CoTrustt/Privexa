@@ -8,9 +8,13 @@ from typing import Annotated
 from fastapi import Cookie, Depends, Request
 from sqlalchemy.orm import Session
 
+from privexa_api.ai_gateway.gateway import AIGateway
 from privexa_api.authentication.errors import AuthenticationProblem, AuthenticationRequiredError
 from privexa_api.authentication.service import AuthenticatedIdentity, AuthenticationService
 from privexa_api.authentication.stytch_gateway import StytchSessionGateway
+from privexa_api.db.session import discard_domain_events, drain_domain_events
+from privexa_api.domain.telemetry import log_committed_domain_event
+from privexa_api.files.service import StoredFileService
 
 LOGGER = logging.getLogger("privexa.authentication")
 _AUTHENTICATION_HANDLER_NAME = "privexa-authentication-json"
@@ -38,14 +42,29 @@ def get_database_session(request: Request) -> Iterator[Session]:
 
     session = request.app.state.session_factory()
     try:
-        with session.begin():
-            yield session
+        try:
+            with session.begin():
+                yield session
+        except Exception:
+            discard_domain_events(session)
+            raise
+        else:
+            for event in drain_domain_events(session):
+                log_committed_domain_event(event)
     finally:
         session.close()
 
 
 def get_stytch_gateway(request: Request) -> StytchSessionGateway:
     return request.app.state.stytch_gateway
+
+
+def get_stored_file_service(request: Request) -> StoredFileService:
+    return request.app.state.stored_file_service
+
+
+def get_ai_gateway(request: Request) -> AIGateway:
+    return request.app.state.ai_gateway
 
 
 def log_authentication_event(event: str, request: Request, **fields: object) -> None:
