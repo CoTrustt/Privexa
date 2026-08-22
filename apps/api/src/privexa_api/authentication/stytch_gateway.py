@@ -35,6 +35,8 @@ _EXPIRED_ERROR_TYPES = frozenset(
     }
 )
 
+_PROVIDER_CONFIGURATION_ERROR_TYPES = frozenset({"unauthorized_credentials"})
+
 
 class StytchB2BSessionGateway:
     def __init__(self, *, project_id: str, secret: str) -> None:
@@ -47,6 +49,8 @@ class StytchB2BSessionGateway:
             error_type = error.details.error_type or ""
             if error_type in _EXPIRED_ERROR_TYPES or "expired" in error_type:
                 raise SessionExpiredError from error
+            if error_type in _PROVIDER_CONFIGURATION_ERROR_TYPES:
+                raise AuthenticationServiceUnavailableError from error
             if error.details.status_code in {400, 401, 404}:
                 raise AuthenticationFailedError from error
             raise AuthenticationServiceUnavailableError from error
@@ -79,6 +83,8 @@ class StytchB2BSessionGateway:
         try:
             self._client.sessions.revoke(session_token=session_token)
         except StytchError as error:
+            if (error.details.error_type or "") in _PROVIDER_CONFIGURATION_ERROR_TYPES:
+                raise AuthenticationServiceUnavailableError from error
             if error.details.status_code in {400, 401, 404}:
                 return
             raise AuthenticationServiceUnavailableError from error

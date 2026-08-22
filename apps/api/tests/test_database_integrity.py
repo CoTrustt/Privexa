@@ -42,6 +42,7 @@ def test_client_ownership_and_multiple_clients_per_firm(
         "Apollo Finance",
         "Acme Healthcare",
         "Meridian Retail",
+        "Restricted Client Demo",
     }
     assert northstar is not None
     assert northstar.firm_id == FIRM_B_ID
@@ -290,7 +291,7 @@ def test_one_membership_can_have_multiple_clients_and_one_client_multiple_member
             .where(ClientAccessGrant.client_id == APOLLO_FINANCE_ID)
         )
 
-    assert alice_grants == 2
+    assert alice_grants == 3
     assert apollo_explicit_members == 3
 
 

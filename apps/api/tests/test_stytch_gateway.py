@@ -88,6 +88,7 @@ def test_authenticate_fails_closed_for_an_unexpected_provider_response(response)
         ("session_not_found", 404, SessionExpiredError),
         ("session_must_have_at_least_one_active_factor", 401, SessionExpiredError),
         ("invalid_session_token", 401, AuthenticationFailedError),
+        ("unauthorized_credentials", 401, AuthenticationServiceUnavailableError),
         ("server_unavailable", 503, AuthenticationServiceUnavailableError),
     ],
 )
@@ -114,3 +115,10 @@ def test_revoke_is_idempotent_when_the_provider_session_is_already_gone() -> Non
     gateway = _gateway(FakeSessions(error=_stytch_error("session_not_found", 404)))
 
     gateway.revoke("opaque-token")
+
+
+def test_revoke_surfaces_invalid_server_credentials_as_unavailable() -> None:
+    gateway = _gateway(FakeSessions(error=_stytch_error("unauthorized_credentials", 401)))
+
+    with pytest.raises(AuthenticationServiceUnavailableError):
+        gateway.revoke("opaque-token")

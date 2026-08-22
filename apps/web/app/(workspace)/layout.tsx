@@ -1,46 +1,40 @@
 import { redirect } from "next/navigation";
 
-import { SignOutButton } from "@/components/auth/sign-out-button";
-import { getServerSession } from "@/lib/auth/server-session";
+import { ApplicationShell } from "@/components/workspace/application-shell";
+import { WorkspaceState } from "@/components/workspace/workspace-state";
+import { getServerApplicationContext } from "@/lib/application-context/server";
 
 export default async function WorkspaceLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const result = await getServerSession();
+  const result = await getServerApplicationContext();
   if (!result.ok) {
-    redirect(`/sign-in?reason=${encodeURIComponent(result.problem.code)}`);
+    if (result.status === 401) {
+      redirect(`/sign-in?reason=${encodeURIComponent(result.problem.code)}`);
+    }
+    return <WorkspaceState kind={result.status === 403 ? "unavailable" : "temporary"} />;
   }
 
-  const initials = result.session.display_name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-
   return (
-    <div className="min-h-screen bg-[var(--canvas)]">
-      <header className="border-b border-[var(--pv-border)] bg-white/90 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
-          <span className="text-lg font-semibold tracking-[-0.025em] text-[var(--pv-text-strong)]">
-            Privexa
-          </span>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-medium">{result.session.display_name}</p>
-              <p className="text-xs text-[var(--pv-text-muted)]">{result.session.firm_name}</p>
-            </div>
-            <span
-              className="grid size-9 place-items-center rounded-full bg-[var(--pv-surface-strong)] text-xs font-semibold text-[var(--pv-text)]"
-              aria-hidden="true"
-            >
-              {initials}
-            </span>
-            <SignOutButton />
-          </div>
-        </div>
-      </header>
-      {children}
-    </div>
+    <ApplicationShell context={result.context}>
+      {result.context.state === "ACTIVE_CLIENT" ? (
+        children
+      ) : result.context.state === "CLIENT_SELECTION_REQUIRED" ? (
+        <main className="workspace-state-page" aria-labelledby="choose-client-title">
+          <section className="workspace-state-card">
+            <p className="workspace-eyebrow">Client context required</p>
+            <h1 id="choose-client-title" className="workspace-state-title">
+              Choose where you are working
+            </h1>
+            <p className="workspace-state-copy">
+              Select an authorised client from the header. Privexa will verify the choice before
+              opening the workspace.
+            </p>
+          </section>
+        </main>
+      ) : (
+        <WorkspaceState kind="no-clients" />
+      )}
+    </ApplicationShell>
   );
 }

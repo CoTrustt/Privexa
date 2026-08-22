@@ -44,6 +44,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--stytch-member-id", required=True)
     parser.add_argument("--client", action="append", default=[])
     parser.add_argument("--assign-client", action="append", default=[])
+    parser.add_argument(
+        "--restrict-work-note-ai-client",
+        action="append",
+        default=[],
+        help="Create/update a client policy override that denies ai.prepare_work_note.",
+    )
     return parser
 
 
@@ -69,6 +75,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     stytch_member_id=arguments.stytch_member_id,
                     client_names=tuple(arguments.client),
                     assigned_client_names=tuple(arguments.assign_client),
+                    restricted_work_note_client_names=tuple(arguments.restrict_work_note_ai_client),
                 ),
             )
     finally:

@@ -80,8 +80,11 @@ def tenant_data(owner_engine: Engine, migrated_database: None) -> TenantFoundati
     with Session(owner_engine, expire_on_commit=False) as session, session.begin():
         session.execute(
             text(
-                "TRUNCATE TABLE client_access_grants, firm_memberships, "
-                "client_workspaces, users, firms"
+                "TRUNCATE TABLE ai_execution_sources, ai_execution_events, ai_executions, "
+                "ai_provider_circuit_states, "
+                "ai_policy_overrides, active_client_sessions, stored_files, "
+                "client_access_grants, "
+                "firm_memberships, client_workspaces, users, firms"
             )
         )
         fixture = persist_tenant_foundation_fixture(session)

@@ -23,6 +23,10 @@ class Permission(StrEnum):
     CLIENT_ASSIGNMENTS_READ = "client.assignments.read"
     CLIENT_ASSIGNMENTS_MANAGE = "client.assignments.manage"
 
+    FILE_CREATE = "file.create"
+    FILE_READ = "file.read"
+    FILE_DELETE = "file.delete"
+
     PROFILE_READ_SELF = "profile.read_self"
     PROFILE_UPDATE_SELF = "profile.update_self"
 
@@ -39,6 +43,9 @@ _PERMISSION_SCOPES: dict[Permission, AuthorizationScope] = {
     Permission.CLIENT_ARCHIVE: AuthorizationScope.CLIENT,
     Permission.CLIENT_ASSIGNMENTS_READ: AuthorizationScope.CLIENT,
     Permission.CLIENT_ASSIGNMENTS_MANAGE: AuthorizationScope.CLIENT,
+    Permission.FILE_CREATE: AuthorizationScope.CLIENT,
+    Permission.FILE_READ: AuthorizationScope.CLIENT,
+    Permission.FILE_DELETE: AuthorizationScope.CLIENT,
     Permission.PROFILE_READ_SELF: AuthorizationScope.SELF,
     Permission.PROFILE_UPDATE_SELF: AuthorizationScope.SELF,
 }

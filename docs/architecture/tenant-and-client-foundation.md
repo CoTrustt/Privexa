@@ -37,6 +37,11 @@ Decisions, Actions, AI conversations, agent runs, usage records, and client-scop
 Relationships between client-scoped resources must also include their tenant columns when needed to
 prevent cross-client links.
 
+`privexa_api.db.resource_scope` is the executable scope inventory for every mapped table. Model
+discovery fails if a table is added without an explicit `SYSTEM`, `GLOBAL_IDENTITY`, `FIRM`,
+`CLIENT_CONTROL`, `CLIENT`, or `FIRM_OR_CLIENT` classification. Strict `CLIENT` resources also fail
+discovery without non-null ownership and a composite Firm/Client foreign key.
+
 Firm Knowledge carries `firm_id` without `client_id`. Platform Knowledge carries neither. A
 tenant-owned audit event carries `firm_id`; `client_id` is present for a client-scoped event and may
 be null only for a genuinely Firm-level event.
@@ -88,8 +93,8 @@ Client. Scope switching raises an internal security error. This matters because 
 identity map can return a previously loaded object without executing another RLS-protected query.
 Portfolio or background work over several Clients must open a new Session per Client.
 
-RLS is enabled and forced on `firms`, `users`, `firm_memberships`, `client_workspaces`, and
-`client_access_grants`. Policies fail closed without context and private policy helpers re-check
+RLS is enabled and forced on `firms`, `users`, `firm_memberships`, `client_workspaces`,
+`client_access_grants`, and `stored_files`. Policies fail closed without context and private policy helpers re-check
 active identity and authorization relationships. Firm and Client Workspace updates are limited to
 their validated scope; Client Workspace inserts require an Owner/Admin candidate scope; hard deletes
 are denied. Membership and Client access-grant mutations remain denied because their management
@@ -101,7 +106,8 @@ those attributes and verifies forced RLS on the protected-table inventory. Alemb
 schema-owner URL. Private `SECURITY DEFINER` functions use a fixed `pg_catalog` search path,
 schema-qualified tables, revoked `PUBLIC` execution, and grants only to the configured runtime role.
 Table grants mirror the implemented commands: Firm/User read-update, Membership/AccessGrant read,
-and ClientWorkspace read-insert-update. The runtime role has no protected-table DELETE privilege.
+ClientWorkspace read-insert-update, and StoredFile read-insert plus lifecycle-column updates. The
+runtime role has no protected-table DELETE privilege.
 
 Client creation is limited to an Owner/Admin whose validated Firm candidate context names the new
 Client UUID. The SELECT policy admits that active candidate row so PostgreSQL `INSERT ... RETURNING`
@@ -110,10 +116,17 @@ explicit authorization policies in their owning PBIs.
 
 ## Application authorization
 
-Protected HTTP routes use `require_firm_permission(...)`, `require_client_permission(...)`, or
-`require_self_permission(...)`.
-These dependencies authenticate first, produce action-bound authorization context, and translate
-private authorization failures into stable API behavior:
+Protected HTTP routes use `require_firm_permission(...)`, `require_self_permission(...)`, or an
+explicit active-client protection class. `require_switch_target_client_permission(...)` is reserved
+for the workspace-switch command. Ordinary client resource paths use
+`require_active_client_path_permission(...)`, which reauthorizes the server-selected active client
+and then requires the path `{client_id}` to match it. Client operations without a client path use
+`require_active_client_permission(...)`.
+These dependencies authenticate first, obtain an internal action-bound authorization result, and
+issue the canonical `ExecutionContext` carried into application services. `FirmContext` and
+`ClientContext` remain narrow repository/RLS projections derived from that envelope. See
+`canonical-execution-context.md` for the construction and propagation contract. The dependencies
+translate private authorization failures into stable API behavior:
 
 - missing or invalid authentication is `401`;
 - a prohibited action in a valid visible scope is `403`;
@@ -126,6 +139,14 @@ update DTOs must not expose ownership columns.
 
 Authorization denials are logged with internal IDs, Permission, private reason code, and request ID.
 Tokens, provider secrets, names, and client privacy content are never authorization-log fields.
+Client-scoped file misses also emit one generic resource-unavailable event with the active context,
+operation, safe file UUID, and request/trace correlation. The event does not discover or record an
+owning tenant and therefore preserves the same absent-versus-foreign concealment as the API.
+
+The reusable boundary helpers also provide exact-set validation for multi-resource operations.
+Duplicates or any unresolved ID reject the whole operation; feature code must not silently drop
+foreign items. Existing file repositories already include `id`, `firm_id`, and `client_id` in their
+lookups, and create ownership is derived only from the trusted context.
 
 ## Lifecycle and deletion
 

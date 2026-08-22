@@ -2,6 +2,8 @@
 
 import { createStytchB2BClient, StytchB2BProvider } from "@stytch/nextjs/b2b";
 
+import { PrivexaWordmark } from "@/components/brand/privexa-wordmark";
+
 const publicToken = process.env.NEXT_PUBLIC_STYTCH_PUBLIC_TOKEN;
 const customBaseUrl = process.env.NEXT_PUBLIC_STYTCH_CUSTOM_BASE_URL;
 const client = publicToken
@@ -16,9 +18,7 @@ export function StytchProvider({ children }: Readonly<{ children: React.ReactNod
     return (
       <main className="grid min-h-screen place-items-center px-6">
         <section className="max-w-md rounded-[12px] border border-[var(--pv-border)] bg-[var(--pv-surface)] p-8">
-          <p className="text-lg font-semibold tracking-[-0.025em] text-[var(--pv-text-strong)]">
-            Privexa
-          </p>
+          <PrivexaWordmark className="text-[22px] font-semibold tracking-[-0.025em] text-[var(--pv-text-strong)]" />
           <h1 className="mt-5 text-2xl font-semibold tracking-[-0.025em]">
             Authentication is not configured
           </h1>

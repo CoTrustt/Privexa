@@ -1,36 +1,31 @@
-import { ArrowRight, Scale } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
 export default function HomePage() {
   return (
-    <main className="mx-auto max-w-7xl px-5 py-12 sm:px-8 sm:py-16">
+    <main className="workspace-main">
       <div className="max-w-2xl">
-        <p className="text-sm font-medium text-[var(--accent)]">Home</p>
-        <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-          Your privacy work starts here.
+        <p className="workspace-eyebrow">Home</p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] text-[var(--pv-text-strong)] sm:text-4xl">
+          Client workspace established
         </h1>
-        <p className="mt-5 max-w-xl text-base leading-7 text-[var(--ink-muted)]">
-          Authentication is active. Client access is resolved separately so an empty client list
-          never becomes an authentication failure.
+        <p className="mt-4 max-w-xl text-base leading-7 text-[var(--pv-text-muted)]">
+          Your authenticated firm and client context is active. Future professional work will open
+          inside this verified boundary.
         </p>
       </div>
-
-      <section className="mt-12 grid max-w-3xl gap-4 sm:grid-cols-2" aria-label="Workspace status">
-        <article className="rounded-2xl border border-[var(--line)] bg-white p-6">
-          <Scale className="size-5 text-[var(--accent)]" aria-hidden="true" />
-          <h2 className="mt-8 text-lg font-semibold">Professional judgement</h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--ink-muted)]">
-            Privexa prepares the work. You own every material decision.
-          </p>
-        </article>
-        <article className="flex flex-col justify-between rounded-2xl border border-[var(--line)] bg-[#20231f] p-6 text-white">
+      <section className="mt-10 max-w-2xl border-t border-[var(--pv-divider)] pt-6" aria-label="Context status">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-[8px] bg-[var(--pv-success-soft)] text-[var(--pv-success)]">
+            <ShieldCheck className="size-4" aria-hidden />
+          </span>
           <div>
-            <p className="text-sm text-white/60">Next capability</p>
-            <h2 className="mt-2 text-lg font-semibold">Client workspaces</h2>
+            <h2 className="text-sm font-semibold text-[var(--pv-text-strong)]">Secure context active</h2>
+            <p className="mt-1 text-sm leading-6 text-[var(--pv-text-muted)]">
+              The client shown above is resolved by Privexa and revalidated on every protected
+              request.
+            </p>
           </div>
-          <p className="mt-8 flex items-center gap-2 text-sm text-white/70">
-            Available when provisioned <ArrowRight className="size-4" aria-hidden="true" />
-          </p>
-        </article>
+        </div>
       </section>
     </main>
   );

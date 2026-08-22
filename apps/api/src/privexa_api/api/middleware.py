@@ -13,10 +13,12 @@ _UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        request_id = request.headers.get("X-Request-ID") or str(uuid4())
+        # Caller correlation values are untrusted and must not become Privexa's canonical
+        # request ID.
+        request_id = uuid4()
         request.state.request_id = request_id
         response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Request-ID"] = str(request_id)
         return response
 
 

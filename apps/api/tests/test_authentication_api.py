@@ -69,6 +69,9 @@ def _build_client(
         STYTCH_SECRET=SecretStr("secret-test-privexa"),
         PRIVEXA_ENVIRONMENT=environment,
         PRIVEXA_WEB_ORIGIN="http://localhost:3000",
+        OBJECT_STORAGE_ENDPOINT_URL=(
+            "https://storage.test" if environment == "production" else None
+        ),
     )
     app = create_app(
         settings=settings,

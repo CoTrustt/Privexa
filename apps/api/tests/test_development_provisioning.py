@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from privexa_api.access_control.enums import FirmRole
 from privexa_api.access_control.models import ClientAccessGrant, FirmMembership
+from privexa_api.ai_policy.models import AIPolicyOverride
 from privexa_api.clients.models import ClientWorkspace
 from privexa_api.config import Settings
 from privexa_api.development.provision import validate_development_target
@@ -130,6 +131,42 @@ def test_provisioning_is_idempotent_and_assigns_only_requested_client(
             )
             == 1
         )
+
+
+def test_provisioning_creates_an_idempotent_restricted_work_note_demo_client(
+    tenant_data,
+    owner_engine: Engine,
+) -> None:
+    suffix = uuid4()
+    spec = DevelopmentIdentitySpec(
+        firm_name="Customer AI Demo Firm",
+        stytch_organization_id=f"organization-test-ai-{suffix}",
+        email="ai.demo@example.test",
+        display_name="AI Demo Consultant",
+        role=FirmRole.CONSULTANT,
+        stytch_member_id=f"member-test-ai-{suffix}",
+        assigned_client_names=("Apollo Finance Demo", "Restricted Client Demo"),
+        restricted_work_note_client_names=("Restricted Client Demo",),
+    )
+
+    with Session(owner_engine) as session, session.begin():
+        first = provision_development_identity(session, spec=spec)
+    with Session(owner_engine) as session, session.begin():
+        second = provision_development_identity(session, spec=spec)
+
+    assert first == second
+    with Session(owner_engine) as session:
+        restricted_id = first.client_ids["Restricted Client Demo"]
+        overrides = session.scalars(
+            select(AIPolicyOverride).where(
+                AIPolicyOverride.firm_id == first.firm_id,
+                AIPolicyOverride.client_id == restricted_id,
+                AIPolicyOverride.task_id == "ai.prepare_work_note",
+                AIPolicyOverride.superseded_at.is_(None),
+            )
+        ).all()
+    assert len(overrides) == 1
+    assert overrides[0].constraints == {"enabled": False}
 
 
 def test_owner_provisioning_rejects_redundant_client_assignment(

@@ -40,14 +40,31 @@ from privexa_api.identity.models import Firm, User
 pytestmark = [pytest.mark.security, pytest.mark.tenant_isolation]
 
 PROTECTED_TABLES = {
+    "active_client_sessions",
     "firms",
     "users",
     "firm_memberships",
     "client_workspaces",
     "client_access_grants",
+    "stored_files",
 }
 
 EXPECTED_POLICIES = {
+    (
+        "active_client_sessions",
+        "active_client_sessions_scoped_insert",
+        "INSERT",
+    ),
+    (
+        "active_client_sessions",
+        "active_client_sessions_scoped_select",
+        "SELECT",
+    ),
+    (
+        "active_client_sessions",
+        "active_client_sessions_scoped_update",
+        "UPDATE",
+    ),
     ("firms", "firms_scoped_select", "SELECT"),
     ("firms", "firms_scoped_update", "UPDATE"),
     ("users", "users_firm_scoped_select", "SELECT"),
@@ -65,6 +82,9 @@ EXPECTED_POLICIES = {
         "client_access_grants_scoped_select",
         "SELECT",
     ),
+    ("stored_files", "stored_files_scoped_insert", "INSERT"),
+    ("stored_files", "stored_files_scoped_select", "SELECT"),
+    ("stored_files", "stored_files_scoped_update", "UPDATE"),
 }
 
 
@@ -201,6 +221,25 @@ def test_runtime_role_is_non_owner_non_superuser_without_bypass_or_admin_grants(
             ),
             {"tables": sorted(PROTECTED_TABLES)},
         ).all()
+        stored_file_update_columns = set(
+            connection.execute(
+                text(
+                    "SELECT column_name FROM information_schema.role_column_grants "
+                    "WHERE grantee = current_user AND table_schema = 'public' "
+                    "AND table_name = 'stored_files' AND privilege_type = 'UPDATE'"
+                )
+            ).scalars()
+        )
+        active_client_update_columns = set(
+            connection.execute(
+                text(
+                    "SELECT column_name FROM information_schema.role_column_grants "
+                    "WHERE grantee = current_user AND table_schema = 'public' "
+                    "AND table_name = 'active_client_sessions' "
+                    "AND privilege_type = 'UPDATE'"
+                )
+            ).scalars()
+        )
         forbidden = connection.execute(
             text(
                 "SELECT has_schema_privilege(current_user, 'public', 'CREATE') AS schema_create, "
@@ -228,8 +267,19 @@ def test_runtime_role_is_non_owner_non_superuser_without_bypass_or_admin_grants(
         "firm_memberships": {"SELECT"},
         "client_workspaces": {"SELECT", "INSERT", "UPDATE"},
         "client_access_grants": {"SELECT"},
+        "stored_files": {"SELECT", "INSERT"},
+        "active_client_sessions": {"SELECT", "INSERT"},
     }
     assert all(row.is_grantable == "NO" for row in grants)
+    assert stored_file_update_columns == {
+        "status",
+        "object_etag",
+        "completed_at",
+        "deleted_at",
+        "failure_code",
+        "updated_at",
+    }
+    assert active_client_update_columns == {"active_client_id", "updated_at"}
     assert forbidden.schema_create is False
     assert forbidden.can_truncate is False
     assert forbidden.can_trigger is False
@@ -256,6 +306,7 @@ def test_private_helper_functions_have_hardened_search_path_and_grants(
         "validated_client_id",
         "validated_firm_id",
         "validated_role",
+        "list_authorized_active_clients",
     }
     assert all(row.proconfig == ["search_path=pg_catalog"] for row in rows)
     assert all(row.app_execute for row in rows)
@@ -266,6 +317,7 @@ def test_private_helper_functions_have_hardened_search_path_and_grants(
         "validated_client_id",
         "validated_firm_id",
         "validated_role",
+        "list_authorized_active_clients",
     }
 
 

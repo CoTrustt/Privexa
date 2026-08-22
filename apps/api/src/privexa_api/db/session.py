@@ -10,11 +10,17 @@ from privexa_api.db.errors import RuntimeDatabaseSecurityError
 
 PROTECTED_RUNTIME_TABLES = frozenset(
     {
+        "active_client_sessions",
+        "ai_policy_overrides",
+        "ai_executions",
+        "ai_execution_events",
+        "ai_execution_sources",
         "firms",
         "users",
         "firm_memberships",
         "client_workspaces",
         "client_access_grants",
+        "stored_files",
     }
 )
 
@@ -45,7 +51,9 @@ def validate_runtime_database_security(engine: Engine) -> None:
                 "WHERE n.nspname = current_schema() "
                 "AND c.relname IN ("
                 "'firms', 'users', 'firm_memberships', "
-                "'client_workspaces', 'client_access_grants'"
+                "'client_workspaces', 'client_access_grants', 'stored_files', "
+                "'active_client_sessions', 'ai_policy_overrides', "
+                "'ai_executions', 'ai_execution_events', 'ai_execution_sources'"
                 ")"
             )
         ).all()

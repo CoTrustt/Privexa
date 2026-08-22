@@ -10,6 +10,7 @@ from fixtures.tenant_foundation import (
     STYTCH_FIRM_A_ID,
     STYTCH_FIRM_B_ADMIN_ID,
     STYTCH_FIRM_B_ID,
+    STYTCH_MARK_ID,
     STYTCH_RAHUL_ID,
 )
 from privexa_api.authentication.errors import AuthenticationFailedError, SessionExpiredError
@@ -26,6 +27,7 @@ TEST_IDENTITIES = {
     "alice-token": TestIdentity(STYTCH_ALICE_ID, STYTCH_FIRM_A_ID),
     "anita-token": TestIdentity(STYTCH_ANITA_ID, STYTCH_FIRM_A_ID),
     "rahul-token": TestIdentity(STYTCH_RAHUL_ID, STYTCH_FIRM_A_ID),
+    "mark-token": TestIdentity(STYTCH_MARK_ID, STYTCH_FIRM_A_ID),
     "david-token": TestIdentity(STYTCH_DAVID_ID, STYTCH_FIRM_A_ID),
     "bob-token": TestIdentity(STYTCH_BOB_ID, STYTCH_FIRM_B_ID),
     "firm-b-admin-token": TestIdentity(STYTCH_FIRM_B_ADMIN_ID, STYTCH_FIRM_B_ID),

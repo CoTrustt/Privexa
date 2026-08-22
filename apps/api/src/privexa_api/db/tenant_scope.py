@@ -8,7 +8,12 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from privexa_api.access_control.context import ClientContext, FirmContext
+from privexa_api.access_control.permissions import AuthorizationScope
 from privexa_api.db.errors import TenantContextConflictError, TenantContextTransactionError
+from privexa_api.security.execution_context import (
+    ExecutionContext,
+    require_trusted_execution_context,
+)
 
 _SET_LOCAL_CONTEXT = text("SELECT set_config(:setting_name, :setting_value, true)")
 _SESSION_CONTEXT_KEY = "privexa.database_security_context"
@@ -40,6 +45,34 @@ class TenantDatabaseContext:
 def get_tenant_database_context(session: Session) -> TenantDatabaseContext | None:
     context = session.info.get(_SESSION_CONTEXT_KEY)
     return context if isinstance(context, TenantDatabaseContext) else None
+
+
+def require_matching_execution_context_scope(
+    session: Session,
+    context: ExecutionContext,
+) -> TenantDatabaseContext:
+    """Require final RLS scope established from the same validated authority envelope."""
+
+    trusted_context = require_trusted_execution_context(context)
+    database_context = get_tenant_database_context(session)
+    expected_stage = (
+        TenantContextStage.CLIENT
+        if trusted_context.authorization_scope == AuthorizationScope.CLIENT
+        else TenantContextStage.FIRM
+    )
+    if (
+        database_context is None
+        or database_context.stage != expected_stage
+        or database_context.user_id != trusted_context.user_id
+        or database_context.membership_id != trusted_context.membership_id
+        or database_context.firm_id != trusted_context.firm_id
+        or database_context.client_id != trusted_context.client_id
+    ):
+        raise TenantContextConflictError(
+            firm_id=trusted_context.firm_id,
+            client_id=trusted_context.client_id,
+        )
+    return database_context
 
 
 def _assert_transaction_is_safe(session: Session, context: TenantDatabaseContext) -> None:

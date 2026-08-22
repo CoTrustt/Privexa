@@ -8,11 +8,13 @@ import {
 import { AlertCircle, CheckCircle2, CircleEllipsis, LockKeyhole } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { PrivexaWordmark } from "@/components/brand/privexa-wordmark";
 import { copyForProblem } from "@/lib/auth/problem-copy";
 import {
   clearRememberedReturnTo,
   rememberReturnTo,
   safeReturnTo,
+  signInPath,
 } from "@/lib/auth/return-to";
 import { buildStytchConfig, stytchPresentation } from "@/lib/auth/stytch-config";
 import type { AuthenticationProblem } from "@/lib/auth/types";
@@ -106,9 +108,7 @@ export function AuthenticationExperience({
   return (
     <main className="flex min-h-screen flex-col bg-[var(--pv-canvas)] px-5 py-6 sm:px-8 sm:py-8">
       <header className="mx-auto flex w-full max-w-6xl items-center">
-        <span className="text-lg font-semibold tracking-[-0.025em] text-[var(--pv-text-strong)]">
-          Privexa
-        </span>
+        <PrivexaWordmark className="text-[22px] font-semibold tracking-[-0.025em] text-[var(--pv-text-strong)]" />
       </header>
 
       <section className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-16 py-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:py-16">
@@ -185,16 +185,12 @@ export function AuthenticationExperience({
                 <p className="max-w-xs text-[13px] leading-[20px] text-[var(--pv-text-muted)]">
                   Request a new secure link, or use another provisioned account.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProblem(null);
-                    setProviderFailed(false);
-                  }}
+                <a
+                  href={signInPath(destination)}
                   className="mt-5 inline-flex min-h-11 items-center justify-center rounded-[10px] bg-[var(--pv-accent)] px-5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-[var(--pv-accent-hover)]"
                 >
                   Return to sign in
-                </button>
+                </a>
               </div>
             ) : isProcessing ? (
               <ProcessingState />

@@ -20,6 +20,9 @@ EXPECTED_ROLE_PERMISSIONS = {
             Permission.CLIENT_READ,
             Permission.PROFILE_READ_SELF,
             Permission.PROFILE_UPDATE_SELF,
+            Permission.FILE_CREATE,
+            Permission.FILE_READ,
+            Permission.FILE_DELETE,
         }
     ),
     FirmRole.REVIEWER: frozenset(
@@ -28,6 +31,7 @@ EXPECTED_ROLE_PERMISSIONS = {
             Permission.CLIENT_READ,
             Permission.PROFILE_READ_SELF,
             Permission.PROFILE_UPDATE_SELF,
+            Permission.FILE_READ,
         }
     ),
     FirmRole.READ_ONLY: frozenset(
@@ -36,6 +40,7 @@ EXPECTED_ROLE_PERMISSIONS = {
             Permission.CLIENT_READ,
             Permission.PROFILE_READ_SELF,
             Permission.PROFILE_UPDATE_SELF,
+            Permission.FILE_READ,
         }
     ),
 }
@@ -62,6 +67,9 @@ def test_complete_role_permission_matrix(role: FirmRole, permission: Permission)
         Permission.CLIENT_ARCHIVE: AuthorizationScope.CLIENT,
         Permission.CLIENT_ASSIGNMENTS_READ: AuthorizationScope.CLIENT,
         Permission.CLIENT_ASSIGNMENTS_MANAGE: AuthorizationScope.CLIENT,
+        Permission.FILE_CREATE: AuthorizationScope.CLIENT,
+        Permission.FILE_READ: AuthorizationScope.CLIENT,
+        Permission.FILE_DELETE: AuthorizationScope.CLIENT,
         Permission.PROFILE_READ_SELF: AuthorizationScope.SELF,
         Permission.PROFILE_UPDATE_SELF: AuthorizationScope.SELF,
     }[permission]

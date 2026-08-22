@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any
+from uuid import UUID
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -14,8 +15,10 @@ from privexa_api.access_control.errors import (
     AuthorizationProblem,
     AuthorizationResourceNotFoundError,
 )
+from privexa_api.application_context.errors import ApplicationContextProblem
 from privexa_api.authentication.errors import AuthenticationProblem
 from privexa_api.db.errors import DatabaseSecurityError
+from privexa_api.files.errors import FileProblem
 
 DATABASE_SECURITY_LOGGER = logging.getLogger("privexa.database_security")
 
@@ -26,7 +29,7 @@ class ProblemDetail(BaseModel):
     status: int
     code: str
     detail: str
-    request_id: str
+    request_id: UUID
 
 
 def authentication_problem_handler(
@@ -45,7 +48,7 @@ def authentication_problem_handler(
         headers["WWW-Authenticate"] = "Session"
     return JSONResponse(
         status_code=error.status_code,
-        content=problem.model_dump(),
+        content=problem.model_dump(mode="json"),
         headers=headers,
     )
 
@@ -79,7 +82,7 @@ def authorization_problem_handler(
     )
     return JSONResponse(
         status_code=status_code,
-        content=problem.model_dump(),
+        content=problem.model_dump(mode="json"),
         headers={"Cache-Control": "no-store"},
     )
 
@@ -110,7 +113,7 @@ def database_security_problem_handler(
     )
     return JSONResponse(
         status_code=500,
-        content=problem.model_dump(),
+        content=problem.model_dump(mode="json"),
         headers={"Cache-Control": "no-store"},
     )
 
@@ -147,7 +150,40 @@ def database_operation_problem_handler(
     )
     return JSONResponse(
         status_code=problem.status,
-        content=problem.model_dump(),
+        content=problem.model_dump(mode="json"),
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+def file_problem_handler(request: Request, error: FileProblem) -> JSONResponse:
+    problem = ProblemDetail(
+        title=error.title,
+        status=error.status_code,
+        code=error.code,
+        detail=error.detail,
+        request_id=request.state.request_id,
+    )
+    return JSONResponse(
+        status_code=error.status_code,
+        content=problem.model_dump(mode="json"),
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+def application_context_problem_handler(
+    request: Request,
+    error: ApplicationContextProblem,
+) -> JSONResponse:
+    problem = ProblemDetail(
+        title=error.title,
+        status=error.status_code,
+        code=error.code,
+        detail=error.detail,
+        request_id=request.state.request_id,
+    )
+    return JSONResponse(
+        status_code=error.status_code,
+        content=problem.model_dump(mode="json"),
         headers={"Cache-Control": "no-store"},
     )
 
@@ -166,7 +202,7 @@ def problem_response(
         code=code,
         detail=detail,
         request_id=request.state.request_id,
-    ).model_dump()
+    ).model_dump(mode="json")
     return JSONResponse(
         status_code=status_code,
         content=content,
