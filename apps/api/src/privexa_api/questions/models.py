@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Index, String, Text
+from sqlalchemy import CheckConstraint, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from privexa_api.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -51,8 +51,8 @@ class Question(
             "firm_id",
             "client_id",
             "status",
-            "created_at",
-            "id",
+            text("created_at DESC"),
+            text("id DESC"),
         ),
     )
 

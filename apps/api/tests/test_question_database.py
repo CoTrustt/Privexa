@@ -17,8 +17,10 @@ from fixtures.tenant_foundation import (
     NORTHSTAR_RETAIL_ID,
 )
 from sqlalchemy import Engine, create_engine, inspect, select, text
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
+from sqlalchemy.schema import CreateIndex
 
 from privexa_api.access_control.context import FirmContext
 from privexa_api.access_control.enums import FirmRole
@@ -132,6 +134,18 @@ def test_question_model_and_migration_contract(owner_engine: Engine, app_engine:
             )
         ).all()
     with app_engine.connect() as connection:
+        role = connection.execute(
+            text(
+                "SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user"
+            )
+        ).one()
+        owner_name = connection.scalar(
+            text(
+                "SELECT pg_get_userbyid(c.relowner) FROM pg_class AS c "
+                "JOIN pg_namespace AS n ON n.oid = c.relnamespace "
+                "WHERE n.nspname = current_schema() AND c.relname = 'questions'"
+            )
+        )
         grants = set(
             connection.execute(
                 text(
@@ -140,9 +154,21 @@ def test_question_model_and_migration_contract(owner_engine: Engine, app_engine:
                 )
             ).scalars()
         )
+        update_columns = set(
+            connection.execute(
+                text(
+                    "SELECT column_name FROM information_schema.column_privileges "
+                    "WHERE grantee = current_user AND table_name = 'questions' "
+                    "AND privilege_type = 'UPDATE'"
+                )
+            ).scalars()
+        )
 
     assert table.relrowsecurity is True
     assert table.relforcerowsecurity is True
+    assert role.rolsuper is False
+    assert role.rolbypassrls is False
+    assert owner_name != role.rolname
     assert {(row.policyname, row.cmd) for row in policies} == {
         ("questions_scoped_select", "SELECT"),
         ("questions_scoped_insert", "INSERT"),
@@ -153,6 +179,15 @@ def test_question_model_and_migration_contract(owner_engine: Engine, app_engine:
     assert "validated_client_id" in policy_sql
     assert "privexa.membership_id" in policy_sql
     assert grants == {"SELECT", "INSERT"}
+    assert update_columns == {
+        "title",
+        "question_text",
+        "context",
+        "status",
+        "updated_by_membership_id",
+        "updated_at",
+        "version",
+    }
     assert {
         "ck_questions_question_status",
         "ck_questions_question_title_valid",
@@ -170,6 +205,22 @@ def test_question_model_and_migration_contract(owner_engine: Engine, app_engine:
         "fk_questions_firm_creator_membership",
         "fk_questions_firm_updater_membership",
     } <= foreign_keys
+    model_status_index = next(
+        index
+        for index in Question.__table__.indexes
+        if index.name == "ix_questions_firm_client_status_created_id"
+    )
+    model_index_ddl = str(CreateIndex(model_status_index).compile(dialect=postgresql.dialect()))
+    assert model_index_ddl.endswith("(firm_id, client_id, status, created_at DESC, id DESC)")
+    migrated_status_index = next(
+        index
+        for index in inspector.get_indexes("questions")
+        if index["name"] == "ix_questions_firm_client_status_created_id"
+    )
+    assert migrated_status_index["column_sorting"] == {
+        "created_at": ("desc",),
+        "id": ("desc",),
+    }
 
 
 def test_unfiltered_runtime_queries_and_writes_are_client_isolated(
@@ -255,6 +306,132 @@ def test_rls_rejects_forged_actor_ownership_and_hard_delete(
         session.delete(question)
         with pytest.raises(DBAPIError):
             session.flush()
+
+
+def test_rls_insert_update_and_missing_context_fail_closed(
+    tenant_data,
+    owner_engine: Engine,
+    app_engine: Engine,
+) -> None:
+    _seed(owner_engine)
+
+    same_firm_other_client = question_record(
+        firm_id=FIRM_A_ID,
+        client_id=MERIDIAN_RETAIL_ID,
+        membership_id=ALICE_MEMBERSHIP_ID,
+        title="Cross-client insert attempt",
+    )
+    with Session(app_engine) as session, session.begin():
+        _authorize(
+            session,
+            principal=ALICE,
+            client_id=APOLLO_FINANCE_ID,
+            permission=Permission.QUESTION_CREATE,
+        )
+        session.add(same_firm_other_client)
+        with pytest.raises(DBAPIError):
+            session.flush()
+
+    cross_firm = question_record(
+        firm_id=FIRM_B_ID,
+        client_id=NORTHSTAR_RETAIL_ID,
+        membership_id=ALICE_MEMBERSHIP_ID,
+        title="Cross-firm insert attempt",
+    )
+    with Session(app_engine) as session, session.begin():
+        _authorize(
+            session,
+            principal=ALICE,
+            client_id=APOLLO_FINANCE_ID,
+            permission=Permission.QUESTION_CREATE,
+        )
+        session.add(cross_firm)
+        with pytest.raises(DBAPIError):
+            session.flush()
+
+    missing_context = question_record(
+        firm_id=FIRM_A_ID,
+        client_id=APOLLO_FINANCE_ID,
+        membership_id=ALICE_MEMBERSHIP_ID,
+        title="Unscoped insert attempt",
+    )
+    with Session(app_engine) as session, session.begin():
+        session.add(missing_context)
+        with pytest.raises(DBAPIError):
+            session.flush()
+
+    with Session(app_engine) as session, session.begin():
+        _authorize(
+            session,
+            principal=ALICE,
+            client_id=APOLLO_FINANCE_ID,
+            permission=Permission.QUESTION_UPDATE,
+        )
+        with pytest.raises(DBAPIError):
+            session.execute(
+                text(
+                    "UPDATE questions SET updated_by_membership_id = :forged_actor "
+                    "WHERE id = :question_id"
+                ),
+                {
+                    "forged_actor": BOB_MEMBERSHIP_ID,
+                    "question_id": APOLLO_QUESTION_ID,
+                },
+            )
+
+    with Session(owner_engine) as session:
+        assert session.get(Question, APOLLO_QUESTION_ID).updated_by_membership_id == (
+            ALICE_MEMBERSHIP_ID
+        )
+        inserted_titles = set(
+            session.scalars(
+                select(Question.title).where(
+                    Question.title.in_(
+                        {
+                            "Cross-client insert attempt",
+                            "Cross-firm insert attempt",
+                            "Unscoped insert attempt",
+                        }
+                    )
+                )
+            )
+        )
+    assert inserted_titles == set()
+
+
+def test_database_constraints_reject_invalid_content_and_tenant_relationships(
+    tenant_data,
+    owner_engine: Engine,
+) -> None:
+    _seed(owner_engine)
+
+    blank = question_record(
+        firm_id=FIRM_A_ID,
+        client_id=APOLLO_FINANCE_ID,
+        membership_id=ALICE_MEMBERSHIP_ID,
+        title="   ",
+    )
+    with Session(owner_engine) as session, session.begin():
+        session.add(blank)
+        with pytest.raises(DBAPIError):
+            session.flush()
+
+    mismatched_workspace = question_record(
+        firm_id=FIRM_A_ID,
+        client_id=NORTHSTAR_RETAIL_ID,
+        membership_id=ALICE_MEMBERSHIP_ID,
+        title="Mismatched firm and client",
+    )
+    with Session(owner_engine) as session, session.begin():
+        session.add(mismatched_workspace)
+        with pytest.raises(DBAPIError):
+            session.flush()
+
+    with Session(owner_engine) as session:
+        assert (
+            session.scalar(select(Question).where(Question.title == "Mismatched firm and client"))
+            is None
+        )
 
 
 def test_question_context_does_not_leak_through_reused_pooled_connection(
