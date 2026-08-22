@@ -61,6 +61,12 @@ Stytch initialization and its expiry guard only in non-production builds; the se
 opaque-cookie and application-context checks still run. Production ignores the bypass and omits
 the UI harness.
 
+`npm run e2e` is the fast browser suite backed by the loopback-only API stub. The durable Question
+release gate is `npm run e2e:fullstack`: it starts the normal FastAPI application with the test
+Stytch gateway and uses the repository PostgreSQL test database through the non-owner runtime role.
+Load `TEST_DATABASE_URL` and `TEST_APP_DATABASE_URL` from the repository `.env` before running it.
+The test launcher refuses databases whose names do not end in `_test`.
+
 ## Question workflow
 
 The active-client Overview shows the five most recent open Questions, with a dedicated filtered

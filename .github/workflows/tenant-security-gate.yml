@@ -41,6 +41,14 @@ jobs:
         working-directory: apps/web
         run: npm run test:run
 
+      - name: Install Playwright Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Run fast browser regression tests
+        working-directory: apps/web
+        run: npm run e2e
+
       - name: Build production web application
         working-directory: apps/web
         run: npm run build
@@ -48,7 +56,7 @@ jobs:
   tenant-security-gate:
     name: tenant-security-gate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       POSTGRES_DB: privexa_dev
       PRIVEXA_TEST_DB: privexa_test
@@ -93,6 +101,13 @@ jobs:
           enable-cache: true
           cache-dependency-glob: apps/api/uv.lock
 
+      - name: Install Node.js for the full-stack browser gate
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
       - name: Start PostgreSQL and private S3-compatible storage
         run: |
           docker compose up -d --wait postgres minio
@@ -122,6 +137,18 @@ jobs:
         working-directory: apps/api
         run: >-
           uv run pytest -m tenant_isolation --junitxml=test-results/tenant-security.xml
+
+      - name: Install web dependencies for the full-stack browser gate
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Install Playwright Chromium for the full-stack browser gate
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Run PostgreSQL-backed Question browser acceptance
+        working-directory: apps/web
+        run: npm run e2e:fullstack
 
       - name: Upload test reports
         if: always()
