@@ -33,6 +33,15 @@ class ClientSummary(BaseModel):
     display_name: str
 
 
+class QuestionCapabilities(BaseModel):
+    """Browser guidance only; every operation remains server-authorized."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    can_create: bool
+    can_update: bool
+
+
 class ApplicationContextResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, use_enum_values=True)
 
@@ -41,6 +50,7 @@ class ApplicationContextResponse(BaseModel):
     firm: FirmSummary
     active_client: ClientSummary | None
     authorised_clients: list[ClientSummary]
+    question_capabilities: QuestionCapabilities
 
 
 class ActiveClientResponse(BaseModel):

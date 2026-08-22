@@ -167,6 +167,7 @@ def test_context_lists_only_authorized_clients_and_requires_explicit_selection(
         "user": {"id": str(tenant_data.alice.id), "display_name": "Consultant Alice"},
         "firm": {"id": str(FIRM_A_ID), "display_name": "Pai Privacy Consulting"},
         "active_client": None,
+        "question_capabilities": {"can_create": False, "can_update": False},
         "authorised_clients": [
             {"id": str(ACME_HEALTHCARE_ID), "display_name": "Acme Healthcare"},
             {"id": str(APOLLO_FINANCE_ID), "display_name": "Apollo Finance"},
@@ -183,6 +184,7 @@ def test_context_lists_only_authorized_clients_and_requires_explicit_selection(
         "firm",
         "active_client",
         "authorised_clients",
+        "question_capabilities",
     }
     assert set(response.json()["user"]) == {"id", "display_name"}
     assert set(response.json()["firm"]) == {"id", "display_name"}
@@ -221,6 +223,24 @@ def test_authorized_switch_changes_subsequent_canonical_execution_context(
     resolved = client.get("/v1/application-context").json()
     assert resolved["state"] == "ACTIVE_CLIENT"
     assert resolved["active_client"]["id"] == str(ACME_HEALTHCARE_ID)
+    assert resolved["question_capabilities"] == {"can_create": True, "can_update": True}
+
+
+def test_question_capability_projection_is_read_only_guidance(
+    tenant_data,
+    app_engine: Engine,
+) -> None:
+    client = _build_client(app_engine)
+    client.cookies.set("stytch_session", "mark-token")
+    assert _activate(client, ACME_HEALTHCARE_ID).status_code == 200
+
+    response = client.get("/v1/application-context")
+
+    assert response.status_code == 200
+    assert response.json()["question_capabilities"] == {
+        "can_create": False,
+        "can_update": False,
+    }
 
 
 def test_switch_preserves_canonical_security_context_fields_and_request_immutability(
@@ -472,6 +492,10 @@ def test_no_authorized_clients_is_an_authenticated_state(
     assert response.json()["state"] == "NO_AUTHORISED_CLIENTS"
     assert response.json()["active_client"] is None
     assert response.json()["authorised_clients"] == []
+    assert response.json()["question_capabilities"] == {
+        "can_create": False,
+        "can_update": False,
+    }
 
 
 def test_malformed_client_identifier_is_rejected_without_mutation(

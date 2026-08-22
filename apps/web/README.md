@@ -60,3 +60,17 @@ Playwright starts a loopback-only application-context stub and sets
 Stytch initialization and its expiry guard only in non-production builds; the server-side
 opaque-cookie and application-context checks still run. Production ignores the bypass and omits
 the UI harness.
+
+## Question workflow
+
+The active-client Overview shows the five most recent open Questions, with a dedicated filtered
+list and a `ProfessionalObjectShell` detail page. Authorized members can create and edit
+human-authored question text and context, then use the explicit resolve, close, and reopen
+lifecycle commands. Forms use React Hook Form with Zod validation aligned to the API limits and
+preserve drafts after failed mutations or optimistic-version conflicts.
+
+Server Components read Question projections directly from FastAPI with `cache: "no-store"`.
+Browser mutations use narrow same-origin Next.js handlers that validate Origin, UUID path values,
+payload shape, and optimistic version before forwarding only the opaque session cookie. The
+application-context Question capability projection controls whether mutation affordances are
+shown; FastAPI authorization and PostgreSQL RLS remain authoritative for every operation.

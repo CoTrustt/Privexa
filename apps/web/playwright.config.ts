@@ -16,7 +16,7 @@ export default defineConfig({
     },
     {
       command:
-        "PRIVEXA_UI_HARNESS_ENABLED=true PRIVEXA_E2E_AUTH_BYPASS=true PRIVEXA_NEXT_DIST_DIR=.next-e2e PRIVEXA_API_URL=http://127.0.0.1:4010 npm run dev -- --hostname 127.0.0.1 --port 3100",
+        "NEXT_PUBLIC_APP_URL=http://127.0.0.1:3100 PRIVEXA_UI_HARNESS_ENABLED=true PRIVEXA_E2E_AUTH_BYPASS=true PRIVEXA_NEXT_DIST_DIR=.next-e2e PRIVEXA_API_URL=http://127.0.0.1:4010 npm run dev -- --hostname 127.0.0.1 --port 3100",
       port: 3100,
       reuseExistingServer: false,
     },

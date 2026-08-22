@@ -121,7 +121,10 @@ the auth cookies. Callers never supply trusted Firm or Membership IDs.
 `GET /v1/application-context` returns a narrow browser-safe projection of the authenticated user,
 Firm, current active ClientWorkspace, and only the ClientWorkspaces currently authorised by the
 existing access-control policy. It deliberately requires an explicit first selection instead of
-deriving authority from list order.
+deriving authority from list order. When an active ClientWorkspace exists, the response also
+projects `question_capabilities.can_create` and `can_update` from the same authorization policy.
+These booleans are presentation guidance only; Question routes independently authorize every
+operation and remain protected by active-client scope and forced PostgreSQL RLS.
 
 `PUT /v1/application-context/active-client/{client_id}` treats the path value as an untrusted
 request. The normal client authorization dependency validates it, then stores only the authorised

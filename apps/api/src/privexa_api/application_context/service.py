@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 
 from privexa_api.access_control.decisions import AuthorizationFailureReason
 from privexa_api.access_control.errors import AuthorizationDeniedError
-from privexa_api.access_control.permissions import Permission
+from privexa_api.access_control.permissions import AuthorizationScope, Permission
+from privexa_api.access_control.policy import AuthorizationPolicy
 from privexa_api.application_context.repository import ApplicationContextRepository
 from privexa_api.application_context.schemas import (
     ActiveClientResponse,
@@ -16,6 +17,7 @@ from privexa_api.application_context.schemas import (
     ApplicationContextState,
     ClientSummary,
     FirmSummary,
+    QuestionCapabilities,
     UserSummary,
 )
 from privexa_api.authentication.service import AuthenticatedIdentity
@@ -93,6 +95,16 @@ class ApplicationContextService:
         else:
             state = ApplicationContextState.ACTIVE_CLIENT
 
+        def allows(permission: Permission) -> bool:
+            return (
+                active_client is not None
+                and AuthorizationPolicy.evaluate(
+                    role=trusted_context.firm_role,
+                    permission=permission,
+                    required_scope=AuthorizationScope.CLIENT,
+                ).allowed
+            )
+
         return ApplicationContextResponse(
             state=state,
             user=UserSummary(
@@ -105,6 +117,10 @@ class ApplicationContextService:
             ),
             active_client=active_client,
             authorised_clients=clients,
+            question_capabilities=QuestionCapabilities(
+                can_create=allows(Permission.QUESTION_CREATE),
+                can_update=allows(Permission.QUESTION_UPDATE),
+            ),
         )
 
     @staticmethod
