@@ -4,9 +4,11 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm.exc import StaleDataError
 
 from privexa_api.access_control.errors import AuthorizationProblem
 from privexa_api.ai_gateway.factory import build_ai_gateway
@@ -21,7 +23,10 @@ from privexa_api.api.errors import (
     authorization_problem_handler,
     database_operation_problem_handler,
     database_security_problem_handler,
+    domain_problem_handler,
     file_problem_handler,
+    request_validation_problem_handler,
+    stale_data_problem_handler,
 )
 from privexa_api.api.middleware import CookieCsrfMiddleware, RequestContextMiddleware
 from privexa_api.api.routes.ai_tasks import router as ai_tasks_router
@@ -43,6 +48,8 @@ from privexa_api.db.session import (
     build_session_factory,
     validate_runtime_database_security,
 )
+from privexa_api.domain.errors import DomainProblem
+from privexa_api.domain.telemetry import configure_domain_logging
 from privexa_api.files.errors import FileProblem
 from privexa_api.files.service import StoredFileService, configure_file_logging
 from privexa_api.observability.tracing import configure_tracing
@@ -66,6 +73,7 @@ def create_app(
     configure_application_context_logging()
     configure_ai_gateway_logging()
     configure_ai_policy_logging()
+    configure_domain_logging()
     configure_tracing()
     application_settings = settings or get_settings()
     managed_engine = None
@@ -144,8 +152,11 @@ def create_app(
     app.add_exception_handler(AuthorizationProblem, authorization_problem_handler)
     app.add_exception_handler(DatabaseSecurityError, database_security_problem_handler)
     app.add_exception_handler(DBAPIError, database_operation_problem_handler)
+    app.add_exception_handler(StaleDataError, stale_data_problem_handler)
+    app.add_exception_handler(DomainProblem, domain_problem_handler)
     app.add_exception_handler(FileProblem, file_problem_handler)
     app.add_exception_handler(ApplicationContextProblem, application_context_problem_handler)
+    app.add_exception_handler(RequestValidationError, request_validation_problem_handler)
 
     @app.get("/health", include_in_schema=False)
     def health() -> dict[str, str]:

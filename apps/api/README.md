@@ -25,6 +25,15 @@ The Compose initialization creates separate schema-owner and runtime roles. Alem
 connection from `DATABASE_URL`. Application code must use the non-owner runtime role so PostgreSQL
 row-level security cannot be bypassed by table ownership.
 
+## Professional domain object kernel
+
+PBI 1.1 provides the reusable deterministic contracts for future Question, ProcessingActivity,
+Evidence, Obligation, Decision, and Action records. It standardizes explicit client ownership,
+Membership-derived provenance, optimistic versioning, opt-in archival, lifecycle validation, safe
+domain errors, in-process domain events, and domain tracing without adding speculative production
+tables. Adoption rules and the required PostgreSQL/RLS migration template are documented in
+`docs/architecture/domain-object-kernel.md`.
+
 ## Tenant context
 
 Only `AccessControlService.authorize_firm`, `AccessControlService.authorize_client`, and
