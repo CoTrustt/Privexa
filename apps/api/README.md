@@ -34,6 +34,16 @@ domain errors, in-process domain events, and domain tracing without adding specu
 tables. Adoption rules and the required PostgreSQL/RLS migration template are documented in
 `docs/architecture/domain-object-kernel.md`.
 
+## Question domain
+
+PBI 1.3 implements the client-scoped Question professional object at
+`/v1/clients/{client_id}/questions`. Questions preserve human-authored content, begin `OPEN`, use
+explicit resolve/close/reopen commands, require optimistic versions for every mutation, and remain
+protected by active-client authorization plus forced PostgreSQL RLS. Question operation events are
+emitted through the PBI 1.1 post-commit domain-event boundary without logging authored content.
+See `docs/architecture/question-domain.md` for the API, lifecycle, permissions, and security
+contract.
+
 ## Tenant context
 
 Only `AccessControlService.authorize_firm`, `AccessControlService.authorize_client`, and

@@ -27,6 +27,10 @@ class Permission(StrEnum):
     FILE_READ = "file.read"
     FILE_DELETE = "file.delete"
 
+    QUESTION_CREATE = "question.create"
+    QUESTION_READ = "question.read"
+    QUESTION_UPDATE = "question.update"
+
     PROFILE_READ_SELF = "profile.read_self"
     PROFILE_UPDATE_SELF = "profile.update_self"
 
@@ -46,6 +50,9 @@ _PERMISSION_SCOPES: dict[Permission, AuthorizationScope] = {
     Permission.FILE_CREATE: AuthorizationScope.CLIENT,
     Permission.FILE_READ: AuthorizationScope.CLIENT,
     Permission.FILE_DELETE: AuthorizationScope.CLIENT,
+    Permission.QUESTION_CREATE: AuthorizationScope.CLIENT,
+    Permission.QUESTION_READ: AuthorizationScope.CLIENT,
+    Permission.QUESTION_UPDATE: AuthorizationScope.CLIENT,
     Permission.PROFILE_READ_SELF: AuthorizationScope.SELF,
     Permission.PROFILE_UPDATE_SELF: AuthorizationScope.SELF,
 }

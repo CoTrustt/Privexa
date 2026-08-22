@@ -10,6 +10,7 @@ from privexa_api.db.base import Base
 from privexa_api.db.resource_scope import validate_resource_scope_registry
 from privexa_api.files.models import StoredFile
 from privexa_api.identity.models import Firm, User
+from privexa_api.questions.models import Question
 
 validate_resource_scope_registry(Base.metadata)
 
@@ -27,5 +28,6 @@ __all__ = [
     "Firm",
     "FirmMembership",
     "StoredFile",
+    "Question",
     "User",
 ]

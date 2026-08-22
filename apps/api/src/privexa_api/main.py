@@ -33,6 +33,7 @@ from privexa_api.api.routes.ai_tasks import router as ai_tasks_router
 from privexa_api.api.routes.application_context import router as application_context_router
 from privexa_api.api.routes.authentication import router as authentication_router
 from privexa_api.api.routes.files import router as files_router
+from privexa_api.api.routes.questions import router as questions_router
 from privexa_api.application_context.errors import ApplicationContextProblem
 from privexa_api.application_context.service import configure_application_context_logging
 from privexa_api.authentication.errors import AuthenticationProblem
@@ -139,7 +140,7 @@ def create_app(
         CORSMiddleware,
         allow_origins=[application_settings.privexa_web_origin.rstrip("/")],
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "X-Request-ID"],
     )
     app.add_middleware(
@@ -165,5 +166,6 @@ def create_app(
     app.include_router(authentication_router, prefix="/v1")
     app.include_router(application_context_router, prefix="/v1")
     app.include_router(files_router, prefix="/v1")
+    app.include_router(questions_router, prefix="/v1")
     app.include_router(ai_tasks_router, prefix="/v1")
     return app

@@ -18,7 +18,7 @@ def test_database_is_at_revised_pbi_head(owner_engine: Engine) -> None:
     with owner_engine.connect() as connection:
         revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
 
-    assert revision == "20260822_0018"
+    assert revision == "20260822_0019"
 
 
 def test_alembic_revision_chain_is_linear(alembic_config: Config) -> None:
@@ -30,8 +30,9 @@ def test_alembic_revision_chain_is_linear(alembic_config: Config) -> None:
 
     head = script.get_revision("head")
     assert head is not None
-    assert head.revision == "20260822_0018"
-    assert head.down_revision == "20260822_0017"
+    assert head.revision == "20260822_0019"
+    assert head.down_revision == "20260822_0018"
+    assert script.get_revision("20260822_0018").down_revision == "20260822_0017"
     assert script.get_revision("20260822_0017").down_revision == "20260822_0016"
     assert script.get_revision("20260822_0016").down_revision == "20260822_0015"
     assert script.get_revision("20260822_0015").down_revision == "20260822_0014"
@@ -69,6 +70,7 @@ def test_all_pbi_entities_have_uuid_primary_keys(owner_engine: Engine) -> None:
         "ai_executions",
         "ai_execution_events",
         "ai_execution_sources",
+        "questions",
     ):
         primary_key = inspector.get_pk_constraint(table_name)
         columns = {column["name"]: column for column in inspector.get_columns(table_name)}
@@ -81,6 +83,7 @@ def test_every_model_table_has_an_explicit_resource_scope() -> None:
     validate_resource_scope_registry(Base.metadata)
     assert set(RESOURCE_SCOPE_REGISTRY) == set(Base.metadata.tables)
     assert RESOURCE_SCOPE_REGISTRY["stored_files"] is ResourceScope.CLIENT
+    assert RESOURCE_SCOPE_REGISTRY["questions"] is ResourceScope.CLIENT
 
 
 def test_ai_execution_scope_and_client_are_database_consistent(owner_engine: Engine) -> None:
@@ -119,7 +122,7 @@ def test_rls_is_enabled_and_forced_for_protected_tables(owner_engine: Engine) ->
                 "FROM pg_class "
                 "WHERE relname IN ("
                 "'firms', 'users', 'firm_memberships', "
-                "'client_workspaces', 'client_access_grants', 'stored_files', "
+                "'client_workspaces', 'client_access_grants', 'stored_files', 'questions', "
                 "'active_client_sessions', 'ai_policy_overrides', "
                 "'ai_executions', 'ai_execution_events', 'ai_execution_sources'"
                 ")"
@@ -133,6 +136,7 @@ def test_rls_is_enabled_and_forced_for_protected_tables(owner_engine: Engine) ->
         "firms": (True, True),
         "users": (True, True),
         "stored_files": (True, True),
+        "questions": (True, True),
         "active_client_sessions": (True, True),
         "ai_policy_overrides": (True, True),
         "ai_executions": (True, True),

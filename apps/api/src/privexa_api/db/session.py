@@ -7,6 +7,7 @@ from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from privexa_api.db.errors import RuntimeDatabaseSecurityError
+from privexa_api.domain.events import DomainEvent, DomainEventCollector
 
 PROTECTED_RUNTIME_TABLES = frozenset(
     {
@@ -21,8 +22,31 @@ PROTECTED_RUNTIME_TABLES = frozenset(
         "client_workspaces",
         "client_access_grants",
         "stored_files",
+        "questions",
     }
 )
+
+_DOMAIN_EVENT_COLLECTOR_KEY = "privexa.domain_event_collector"
+
+
+def get_domain_event_collector(session: Session) -> DomainEventCollector:
+    collector = session.info.get(_DOMAIN_EVENT_COLLECTOR_KEY)
+    if not isinstance(collector, DomainEventCollector):
+        collector = DomainEventCollector()
+        session.info[_DOMAIN_EVENT_COLLECTOR_KEY] = collector
+    return collector
+
+
+def record_domain_event(session: Session, event: DomainEvent) -> None:
+    get_domain_event_collector(session).record(event)
+
+
+def drain_domain_events(session: Session) -> tuple[DomainEvent, ...]:
+    return get_domain_event_collector(session).drain()
+
+
+def discard_domain_events(session: Session) -> None:
+    get_domain_event_collector(session).discard()
 
 
 def build_engine(database_url: str) -> Engine:
@@ -52,6 +76,7 @@ def validate_runtime_database_security(engine: Engine) -> None:
                 "AND c.relname IN ("
                 "'firms', 'users', 'firm_memberships', "
                 "'client_workspaces', 'client_access_grants', 'stored_files', "
+                "'questions', "
                 "'active_client_sessions', 'ai_policy_overrides', "
                 "'ai_executions', 'ai_execution_events', 'ai_execution_sources'"
                 ")"

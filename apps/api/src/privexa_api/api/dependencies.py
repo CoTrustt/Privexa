@@ -12,6 +12,8 @@ from privexa_api.ai_gateway.gateway import AIGateway
 from privexa_api.authentication.errors import AuthenticationProblem, AuthenticationRequiredError
 from privexa_api.authentication.service import AuthenticatedIdentity, AuthenticationService
 from privexa_api.authentication.stytch_gateway import StytchSessionGateway
+from privexa_api.db.session import discard_domain_events, drain_domain_events
+from privexa_api.domain.telemetry import log_committed_domain_event
 from privexa_api.files.service import StoredFileService
 
 LOGGER = logging.getLogger("privexa.authentication")
@@ -40,8 +42,15 @@ def get_database_session(request: Request) -> Iterator[Session]:
 
     session = request.app.state.session_factory()
     try:
-        with session.begin():
-            yield session
+        try:
+            with session.begin():
+                yield session
+        except Exception:
+            discard_domain_events(session)
+            raise
+        else:
+            for event in drain_domain_events(session):
+                log_committed_domain_event(event)
     finally:
         session.close()
 

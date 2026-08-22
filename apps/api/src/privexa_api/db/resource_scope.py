@@ -27,6 +27,7 @@ RESOURCE_SCOPE_REGISTRY = MappingProxyType(
         "client_access_grants": ResourceScope.CLIENT_CONTROL,
         "active_client_sessions": ResourceScope.CLIENT_CONTROL,
         "stored_files": ResourceScope.CLIENT,
+        "questions": ResourceScope.CLIENT,
         "ai_policy_overrides": ResourceScope.FIRM_OR_CLIENT,
         "ai_executions": ResourceScope.FIRM_OR_CLIENT,
         "ai_execution_events": ResourceScope.FIRM_OR_CLIENT,

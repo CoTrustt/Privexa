@@ -47,6 +47,7 @@ PROTECTED_TABLES = {
     "client_workspaces",
     "client_access_grants",
     "stored_files",
+    "questions",
 }
 
 EXPECTED_POLICIES = {
@@ -85,6 +86,9 @@ EXPECTED_POLICIES = {
     ("stored_files", "stored_files_scoped_insert", "INSERT"),
     ("stored_files", "stored_files_scoped_select", "SELECT"),
     ("stored_files", "stored_files_scoped_update", "UPDATE"),
+    ("questions", "questions_scoped_insert", "INSERT"),
+    ("questions", "questions_scoped_select", "SELECT"),
+    ("questions", "questions_scoped_update", "UPDATE"),
 }
 
 
@@ -240,6 +244,15 @@ def test_runtime_role_is_non_owner_non_superuser_without_bypass_or_admin_grants(
                 )
             ).scalars()
         )
+        question_update_columns = set(
+            connection.execute(
+                text(
+                    "SELECT column_name FROM information_schema.role_column_grants "
+                    "WHERE grantee = current_user AND table_schema = 'public' "
+                    "AND table_name = 'questions' AND privilege_type = 'UPDATE'"
+                )
+            ).scalars()
+        )
         forbidden = connection.execute(
             text(
                 "SELECT has_schema_privilege(current_user, 'public', 'CREATE') AS schema_create, "
@@ -269,6 +282,7 @@ def test_runtime_role_is_non_owner_non_superuser_without_bypass_or_admin_grants(
         "client_access_grants": {"SELECT"},
         "stored_files": {"SELECT", "INSERT"},
         "active_client_sessions": {"SELECT", "INSERT"},
+        "questions": {"SELECT", "INSERT"},
     }
     assert all(row.is_grantable == "NO" for row in grants)
     assert stored_file_update_columns == {
@@ -280,6 +294,15 @@ def test_runtime_role_is_non_owner_non_superuser_without_bypass_or_admin_grants(
         "updated_at",
     }
     assert active_client_update_columns == {"active_client_id", "updated_at"}
+    assert question_update_columns == {
+        "title",
+        "question_text",
+        "context",
+        "status",
+        "updated_by_membership_id",
+        "updated_at",
+        "version",
+    }
     assert forbidden.schema_create is False
     assert forbidden.can_truncate is False
     assert forbidden.can_trigger is False

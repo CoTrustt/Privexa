@@ -82,7 +82,7 @@ def tenant_data(owner_engine: Engine, migrated_database: None) -> TenantFoundati
             text(
                 "TRUNCATE TABLE ai_execution_sources, ai_execution_events, ai_executions, "
                 "ai_provider_circuit_states, "
-                "ai_policy_overrides, active_client_sessions, stored_files, "
+                "ai_policy_overrides, active_client_sessions, questions, stored_files, "
                 "client_access_grants, "
                 "firm_memberships, client_workspaces, users, firms"
             )

@@ -79,6 +79,11 @@ def test_every_production_route_has_an_explicit_protection_classification(
         "/v1/clients/{client_id}/files/{file_id}/complete",
         "/v1/clients/{client_id}/files/{file_id}",
         "/v1/clients/{client_id}/files/{file_id}/download",
+        "/v1/clients/{client_id}/questions",
+        "/v1/clients/{client_id}/questions/{question_id}",
+        "/v1/clients/{client_id}/questions/{question_id}/resolve",
+        "/v1/clients/{client_id}/questions/{question_id}/close",
+        "/v1/clients/{client_id}/questions/{question_id}/reopen",
     }
     active_client_paths = {
         "/v1/ai/tasks/ai.prepare_work_note/capability",
